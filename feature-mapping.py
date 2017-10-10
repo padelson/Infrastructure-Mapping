@@ -3,6 +3,7 @@ import numpy as np
 from scipy import stats
 from collections import Counter
 import pickle
+import matplotlib.pyplot as plt
 
 ORIG_NAMES = [
 	'a01',
@@ -115,20 +116,31 @@ DONT_KNOW = -888
 NA = -777
 TOO_MANY = -333
 
+def plot_graph(col_data, category, bar=True):
+	fig, ax = plt.subplots()
+	if bar:
+		col_data.value_counts().plot(ax=ax, kind='bar')
+	else:
+		plt.hist(col_data)
+	plt.ylabel('# responses')
+	plt.title(category)
+	plt.tight_layout()
+	plt.show()
+
+
 def main():
 	data_labeled = pd.read_csv('Addis_data_withlabel.csv')
-	data_labeled = data_labeled.fillna("empty")
+	data_labeled = data_labeled.fillna(-1)
+	data_labeled = data_labeled.replace(
+		to_replace=[OTHER, DONT_KNOW, NA, TOO_MANY],
+		value=-1
+	)
 	data = pd.read_csv('Addis_data.csv')
 	data = data.fillna(-1)
-	freq_list = []
 
 	for i, col in enumerate(ORIG_NAMES):
 		col_data = data_labeled[col]
-		mode = stats.mode(col_data)
-		freqs = Counter(col_data)
-		freq_list.append((NEW_NAMES[i],freqs))
-
-	pickle.dump(freq_list, open('freqs.pkl', 'wb'))
+		plot_graph(data_labeled[col].dropna(), NEW_NAMES[i], col_data[0] == -1 or isinstance(col_data[0], basestring))
 
 
 if __name__ == "__main__":
