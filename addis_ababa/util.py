@@ -54,6 +54,72 @@ ORIG_NAMES = [
 	'bl_sd50',
 	'bl_sd51'
 ]
+
+
+# d = Delete
+# c = Continuous
+# b = Binarize
+# y = Turn Yes/No to 0/1
+# f = Followup
+# r = Regional
+feature_dicts = [
+	{orig_name : 'a01', 	new_name : 'ID', mode : 'd'},
+	{orig_name : 'bl_bi24latitude', new_name : 'lat', mode : 'c'},
+	{orig_name : 'bl_bi24longitude', new_name : 'long', mode : 'c'},
+	{orig_name : 'bl_dw15', new_name : 'water_source_drinking', mode : 'b'},
+	{orig_name : 'bl_dw16', new_name : 'water_location_drinking', mode : 'b'},
+	{orig_name : 'bl_dw19', new_name : 'water_interruptions_drinking', mode : 'b'},
+	{orig_name : 'bl_dw20', new_name : 'water_unavailable', mode : 'fy', follows_feature : 'bl_dw19' : follows_value : 1},
+	{orig_name : 'bl_dw21', new_name : 'water_treated', mode : 'y'},
+	{orig_name : 'bl_dw23', new_name : 'water_quality_concerns', mode : 'y'},
+	{orig_name : 'bl_dw25', new_name : 'water_satisfaction', mode : 'c'},
+	{orig_name : 'bl_dw31', new_name : 'water_drinking_cooking_same', mode : 'y'},
+	{orig_name : 'bl_dw32', new_name : 'water_source_cooking', mode : 'fb', follows_feature : 'bl_dw31', follows_value : 2},
+	{orig_name : 'bl_dw33', new_name : 'water_location_cooking', mode : 'fb', follows_feature : 'bl_dw31', follows_value : 2},
+	{orig_name : 'bl_dw34', new_name : 'water_distance_cooking', mode : 'fc', follows_feature : 'bl_dw33', follows_value : 3},
+	{orig_name : 'bl_dw36', new_name : 'water_interruptions_cooking', mode : 'fy', follows_feature : 'bl_dw31', follows_value : 2},
+	{orig_name : 'bl_dw39', new_name : 'toilet_type', mode : 'b'},
+	{orig_name : 'bl_dw40', new_name : 'pit_latrine_depth', mode : 'fc', follows_feature : 'bl_dw39', follows_value : 1},
+	{orig_name : 'bl_dw41', new_name : 'toilet_shared', mode : 'y'},
+	{orig_name : 'bl_dw42', new_name : 'toilet_num_households', mode : 'fc', follows_feature : 'bl_dw41', follows_value : 1},
+	{orig_name : 'bl_dw44', new_name : 'garbage_disposal', mode : 'b'},
+	{orig_name : 'bl_dw45', new_name : 'garbage_distance', mode : 'c'},
+	{orig_name : 'bl_dw46', new_name : 'garbage_regular', mode : 'y'},
+	{orig_name : 'bl_dw47', new_name : 'garbage_frequency', mode : 'fb', follows_feature : 'bl_dw46', follows_value : 1},
+	{orig_name : 'bl_dw52', new_name : 'waste_water_disposal', mode : 'b'},
+	{orig_name : 'bl_dw53', new_name : 'storm_drain', mode : 'y'},
+	{orig_name : 'bl_dw54', new_name : 'other_drain', mode : 'fy', follows_feature : 'bl_dw53', follows_value : 2},
+	{orig_name : 'bl_dw56', new_name : 'electricity_access', mode : 'y'},
+	{orig_name : 'bl_dw57', new_name : 'electricity_source', mode : 'fb', follows_feature : 'bl_dw56', follows_value : 1},
+	{orig_name : 'bl_dw59', new_name : 'electricity_payment', mode : 'fb', follows_feature : 'bl_dw56', follows_value : 1},
+	{orig_name : 'bl_dw61', new_name : 'electricity_always', mode: 'fy', follows_feature : 'bl_dw56', follows_value : 1},
+	{orig_name : 'bl_dw63', new_name : 'electricity_interruptions', mode : 'fc', follows_feature : 'bl_dw56', follows_value : 1},
+	{orig_name : 'bl_dw64', new_name : 'electricity_outages_length', mode : 'd'},
+	{orig_name : 'bl_dw72', new_name : 'lighting_source', mode : 'b'},
+	{orig_name : 'bl_dw73', new_name : 'cooking_fuel', mode : 'b'},
+	{orig_name : 'bl_sd13', new_name : 'road_type', mode : 'b'},
+	{orig_name : 'bl_sd14', new_name : 'road_safety', mode : 'c'},
+	{orig_name : 'bl_sd15', new_name : 'road_rainy_season', mode : 'c'},
+	{orig_name : 'bl_sd24_piazza', new_name : 'distance_piazza', mode : 'c'},
+	{orig_name : 'bl_sd24_leghar', new_name : 'distance_leghar', mode : 'c'},
+	{orig_name : 'bl_sd26', new_name : 'distance_minibus', mode : 'c'},
+	{orig_name : 'bl_sd27', new_name : 'distance_motorcycle', mode : 'c'},
+	{orig_name : 'bl_sd28', new_name : 'distance_light_rail', mode : 'c'},
+	{orig_name : 'bl_sd33', new_name : 'healthcare_used', mode : 'y'}
+	{orig_name : 'bl_sd35', new_name : 'healthcare_distance', mode : 'c'}
+	{orig_name : 'bl_sd36', new_name : 'healthcare_satisfaction', mode : 'c'}
+	{orig_name : 'bl_sd43', new_name : 'education_used', mode : 'y'},
+	{orig_name : 'bl_sd45', new_name : 'bl_sd45', mode : 'c'},
+	{orig_name : 'bl_sd46', new_name : 'education_distance', mode : 'cf', follows_feature : 'bl_sd54', follows_value : -888, follows_logic : 'not'},
+	{orig_name : 'bl_sd48', new_name : 'satisfaction_num_classrooms', mode : 'rc'},
+	{orig_name : 'bl_sd49', new_name : 'satisfaction_num_textbooks', mode : 'rc'},
+	{orig_name : 'bl_sd50', new_name : 'satisfaction_cost_textbooks', mode : 'rc'},
+	{orig_name : 'bl_sd51', new_name : 'satisfaction_education', mode : 'c'}
+	]
+
+
+
+
 NEW_NAMES = [
 	'lat',
 	'long',
