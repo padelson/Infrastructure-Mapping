@@ -75,54 +75,23 @@ if __name__ == "__main__":
     img_tensor = np.squeeze(img) 
     img2_tensor = np.squeeze(img2)
     print(img2_tensor[:,:,:3].shape)
-    fig=plt.figure()
-    plt.imshow(np.dstack([img2_tensor[:,:,2].astype(np.uint8), 
-                         img2_tensor[:,:,1].astype(np.uint8),
-                         img2_tensor[:,:,0].astype(np.uint8)] ))
-    
-    #plt.tight_layout()
-    #plt.show()
-    
-    save_path_dir = "../img/"+fname_wo_type 
-    if os.path.exists(save_path_dir) is False :
-        os.mkdir(save_path_dir)
-    
-    fig.savefig(save_path_dir+"/rgb_overall_view.png", width=12, height=12)
+   
     # plot overall histogram of bands value
 
     img2_arr = img2_tensor.flatten()
     img2_arr = img2_arr[np.where( img2_arr>0.1)]
-    
-    weights_norm = np.ones_like(img2_arr)/float(len(img2_arr)) 
-    fig2=plt.figure(figsize=(12, 9))
-    plt.hist(img2_arr, bins=500, weights=weights_norm)
-    plt.xlabel("mean: %.2f; var: %.2f" %(np.mean(img2_arr), np.var(img2_arr) ), fontsize=16 )
-    plt.ylabel("Proportion (%)", fontsize=16)
-    plt.tick_params(labelsize=13)
-    plt.title("All bands histogram")
-    #plt.show()
-    fig2.savefig(save_path_dir+"hist_overall_bands.png", width=12, height=9)
-    plt.close('all')
-    print("=========finish overall_view fig generation!=============")
+   
     #############################
     # def sub func to vis hist 
     #############################
     def visHistOnBand(np_mat, band_idx, b_key, color_="darkcyan", path_def=".", displayImg=False):
         arr_ = np_mat.flatten()
         arr_ = arr_[np.where(arr_ > 0.1)]
-        bin_n = np.minimum(100, arr_.shape[0])
-        weights_ = np.ones_like(arr_)/float(len(arr_))
-        fig_ = plt.figure()
-        plt.hist(arr_, bins=bin_n, weights=weights_, color=color_)
-        plt.xlabel("mean: %.2f ; var: %.2f " % (np.mean(arr_), np.var(arr_) ), fontsize=16 )
-        plt.ylabel("Proportion (%)", fontsize=16)
-        plt.title("Band %d: %s" % (band_idx, b_key) )
-        #plt.tight_layout()    
-        if displayImg is True:
-            plt.show()
         
-        fig_.savefig(path_def+"/band_%d_hist.png"%band_idx, width=10, height=8)
+        weights_ = np.ones_like(arr_)/float(len(arr_))
+        print (np.mean(arr_))
 
+        
          
     MultiBand_keyword = ["Blue", "Green", "Red", "NIR", "SWIR1", "SWIR2"]
     color_name = ["steelblue", "forestgreen", "tomato", "violet", "saddlebrown", "darkorange"]      
@@ -131,17 +100,5 @@ if __name__ == "__main__":
         #img = imresize(np.squeeze(img_tensor)[:,:,k], 0.9)
         img2 = imresize(np.squeeze(img2_tensor)[:,:,k], 0.9)
         visHistOnBand(np.squeeze(img2_tensor)[:,:,k], k, MultiBand_keyword[k], 
-                      color_ = color_name[k],  path_def=save_path_dir, displayImg=False)
-
-        #plt.imshow(img, cmap='gray')
-        #plt.imshow(img)
-        #plt.title("band %d" % k )
-        #plt.show()
-        #plt.imshow(img2, cmap='gray')
-        fig3 = plt.figure(figsize=(10,10))
-        plt.imshow(img2)
-        plt.title("Band %d: %s" % (k, MultiBand_keyword[k] ))	
-        #plt.show()
-        #plt.tight_layout()
-        fig3.savefig(save_path_dir+"/band_%d_view.png" % k, width=10, height=10 )
+                      color_ = color_name[k],   displayImg=False)
         print("=====band %d figs are generated!======" % k)   

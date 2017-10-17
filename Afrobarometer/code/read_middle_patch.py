@@ -10,6 +10,8 @@ import gdal
 import numpy as np
 #from scipy.misc import imshow, imresize
 from scipy.misc import imresize
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import sys, os 
 
