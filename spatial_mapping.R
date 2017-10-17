@@ -2,6 +2,7 @@ library(ggmap)
 library(ggplot2)
 
 csv_path = "/Users/anniehu/Desktop/CS325B/"
+
 water_interruption = "bl_dw19"
 water_days = "bl_dw20"
 water_satisfaction = "bl_dw25"
@@ -16,9 +17,11 @@ education_use = "bl_sd43"
 education_distance = "bl_sd46"
 education_satisfaction = "bl_sd51"
 
+
 data_raw = read.csv(paste(csv_path, "Addis_data.csv", sep=""))
 
 d <- data.frame(lat=data_raw[['bl_bi24latitude']],
+
                 lon=data_raw[['bl_bi24longitude']],
                 interruption=data_raw[[education_use]],
                 days=data_raw[[education_distance]],
