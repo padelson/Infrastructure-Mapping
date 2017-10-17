@@ -28,22 +28,22 @@ def create_columns(data):
 		print "Mode F/O: %s" % feature_dict['orig_name']
 		if 'o' in feature_dict['mode']:
 			if feature_dict['orig_name'] == 'bl_dw42':
-				func = lambda x: 0 if x['bl_dw41'].values == 2 else x['bl_dw42'].values
+				func = lambda x: 0 if x['bl_dw41'].values == 2 else x['bl_dw42'].values[0]
 				data = data.assign(feat = get_assign_list(func, feature_dict, data))
 				data = data.rename(columns = {'feat': feature_dict['new_name']})
 
 			if feature_dict['orig_name'] == 'bl_dw63':
-				func = lambda x: 0 if x['bl_dw56'].values == 2 else x['bl_dw63'].values
+				func = lambda x: 0 if x['bl_dw56'].values == 2 else x['bl_dw63'].values[0]
 				data = data.assign(feat = get_assign_list(func, feature_dict, data))
 				data = data.rename(columns = {'feat': feature_dict['new_name']})
 
 			if feature_dict['orig_name'] == 'bl_dw64':
-				func = lambda x: 0 if x['bl_dw63'].values == 0 else x['bl_dw63'].values
+				func = lambda x: 0 if x['bl_dw63'].values == 0 else x['bl_dw63'].values[0]
 				data = data.assign(feat = get_assign_list(func, feature_dict, data))
 				data = data.rename(columns = {'feat': feature_dict['new_name']})
 
 			if feature_dict['orig_name'] == 'bl_sd46':
-				func = lambda x: 150 if x['bl_dw45'].values == -888 else x['bl_dw63'].values
+				func = lambda x: 150 if x['bl_dw45'].values == -888 else x['bl_dw63'].values[0]
 				data = data.assign(feat = get_assign_list(func, feature_dict, data))
 				data = data.rename(columns = {'feat': feature_dict['new_name']})
 
