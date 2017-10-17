@@ -7,7 +7,7 @@ import numpy as np
 import util
 
 def initialize_data(datafile):
-	data = pandas.read_csv('Addis_data.csv')
+	data = pandas.read_csv(datafile)
 	return data
 
 def change_feature_names(data):
@@ -124,3 +124,4 @@ def run_pipeline():
 
 if __name__ == "__main__":
 	data = run_pipeline()
+	data.to_csv('Addis_processed.csv')
