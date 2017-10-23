@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
-import util
+import addis as util
 
 def initialize_data(datafile):
 	data = pandas.read_csv(datafile)
