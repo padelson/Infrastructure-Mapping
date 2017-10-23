@@ -137,7 +137,7 @@ def run_pipeline():
 	data = initialize_data('Addis_data.csv')
 	binary_features, continuous_features = [], []
 	data = create_columns(data, (binary_features, continuous_features))
-
+	
 	return data
 
 def save_as_csv(data, filename):
