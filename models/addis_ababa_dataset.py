@@ -45,7 +45,7 @@ class AddisAbaba(Dataset):
 		self.batch_size = batch_size
 		return self.num_batches
 
-	def get_x_batch(iteration):
+	def get_x_batch(self, iteration):
 		return np.random.rand(100, 299, 299, 3)
 
 	# def get_x_batch(iteration):
@@ -61,7 +61,7 @@ class AddisAbaba(Dataset):
 		#else:
 		#	return self.x[self.batch_size * iteration : self.batch_size * (iteration + 1)]
 
-	def get_y_batch(iteration):
+	def get_y_batch(self, iteration):
 		if (iteration == self.num_batches-1):
 			return self.y_binary[self.batch_size * iteration :], self.y_continuous[self.batch_size * iteration :]
 		else:

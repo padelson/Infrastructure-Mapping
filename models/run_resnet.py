@@ -14,7 +14,6 @@ import tensorflow.contrib.slim as slim
 # 
 # Remove -888 and other values on Addis Ababa dataset
 # Obtain the binary features and continuous features once
-# Write get sattelite images function
 # Save model
 
 def build_placeholders(data):
@@ -24,11 +23,14 @@ def build_placeholders(data):
 
 	return {'x': x,  'y_binary': y_binary, 'y_continuous': y_continuous}
 
-def build_resnet(placeholders, checkpoint_name):
+def build_resnet(placeholders, checkpoint_name, name="resnet"):
+	#with slim.arg_scope(name):
+	# with slim.arg_scope(inception_v3.inception_v3_arg_scope()):
 	logits, end_points = inception_resnet_v2(placeholders['x'])
 	end_points['final_features'] = end_points['PreLogitsFlatten']
+	resnet_variables =  tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 
-	return end_points
+	return end_points, resnet_variables
 
 def build_predictions(end_points, data):
 	end_points['logits_binary'] = slim.fully_connected(end_points['final_features'], data.num_binary_features(), activation_fn=None, scope='Logits_Binary')
@@ -69,7 +71,7 @@ if __name__ == "__main__":
 	file_name = "../addis_ababa/Addis_processed.csv"
 	lr = 0.01
 	binary_loss_weighting = 0.5
-	batch_size = 128
+	batch_size = 100
 	num_epochs = 5
 	print_every = 5
 
@@ -77,14 +79,20 @@ if __name__ == "__main__":
 
 	tf.reset_default_graph()
 	placeholders = build_placeholders(data)
-	end_points = build_resnet(placeholders, checkpoint_name)
+	end_points, resnet_variables = build_resnet(placeholders, checkpoint_name, name="resnet")
 	build_predictions(end_points, data)
 	build_loss(end_points, placeholders, binary_loss_weighting)
 	acc = build_accuracy(end_points, placeholders)
 	train_op = build_optimizer(end_points, lr)
 
+	#resnet_variables =  tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="resnet")
+
+	checkpoint_resnet_variables = []
+	for var in resnet_variables:
+		if "biases" not in var.name: checkpoint_resnet_variables.append(var)
+	saver = tf.train.Saver(var_list = checkpoint_resnet_variables)
+
 	sess = tf.Session()
-	saver = tf.train.Saver()
 	saver.restore(sess, checkpoint_name)
 	sess.run(tf.initialize_all_variables())
 
