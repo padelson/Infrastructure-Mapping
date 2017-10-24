@@ -1,15 +1,19 @@
 from resnet import inception_resnet_v2
 import tensorflow as tf
 import pandas
+import sys
+sys.path.append("..")
 from utils import addis as util
 import numpy as np
+from addis_ababa_dataset import AddisAbaba
 from datasets import *
+import tensorflow.contrib.slim as slim
+
 
 # TO DO:
 # 
 # Remove -888 and other values on Addis Ababa dataset
 # Obtain the binary features and continuous features once
-# Write get sattelite images function
 # Save model
 
 def build_placeholders(data):
@@ -19,24 +23,21 @@ def build_placeholders(data):
 
 	return {'x': x,  'y_binary': y_binary, 'y_continuous': y_continuous}
 
-def build_resnet(placeholders, checkpoint_name)
-	tf.reset_default_graph()
+def build_resnet(placeholders, checkpoint_name, name="resnet"):
+	#with slim.arg_scope(name):
+	# with slim.arg_scope(inception_v3.inception_v3_arg_scope()):
 	logits, end_points = inception_resnet_v2(placeholders['x'])
-	saver = tf.train.Saver()
-	saver.restore(sess, checkpoint_name)
+	end_points['final_features'] = end_points['PreLogitsFlatten']
+	resnet_variables =  tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 
-	final_features = end_points['PreLogitsFlatten']
-
-	end_points['final_features'] = final_features
-
-	return end_points
+	return end_points, resnet_variables
 
 def build_predictions(end_points, data):
 	end_points['logits_binary'] = slim.fully_connected(end_points['final_features'], data.num_binary_features(), activation_fn=None, scope='Logits_Binary')
 	end_points['logits_continuous'] = slim.fully_connected(end_points['final_features'], data.num_continuous_features(), activation_fn=None, scope='Logits_Continuous')
 
-	end_points['predictions_binary'] = tf.nn.sigmoid(logits_binary)
-	end_points['predictions_continuous'] = logits_continuous
+	end_points['predictions_binary'] = tf.nn.sigmoid(end_points['logits_binary'])
+	end_points['predictions_continuous'] = end_points['logits_continuous']
 
 	return (end_points['predictions_binary'], end_points['predictions_continuous'])
 
@@ -49,34 +50,50 @@ def build_loss(end_points, placeholders, binary_weighting):
 	return end_points['loss_total']
 
 def build_accuracy(end_points, placeholders):
-	end_points['acc'] = tf.cast(tf.reduce_sum(tf.equals(placeholders['y_binary'], tf.round(end_points['predictions_binary']))), tf.float32) / tf.cast(placeholders['y_binary'].shape[0], tf.float32)
+
+	rounded_predictions = tf.round(end_points['predictions_binary'])
+	correct_predictions = tf.equal(placeholders['y_binary'], rounded_predictions)
+	correct_predictions_float = tf.cast(correct_predictions, tf.float32)
+	num_correct_predictions = tf.reduce_sum(correct_predictions_float)
+	num_predictions = tf.cast(tf.shape(correct_predictions)[0], tf.float32)
+	end_points['acc'] = num_correct_predictions / num_predictions
 
 	return end_points['acc']
 
 
 def build_optimizer(end_points, lr):
-	end_points['train_op'] = tf.train.AdamOptimizer(lr).minimize(end_points['loss'])
+	end_points['train_op'] = tf.train.AdamOptimizer(lr).minimize(end_points['loss_total'])
 
 	return end_points['train_op']
 
-if __name__ == __main__:
-	checkpoint_name = "inception_resnet_v2_2016_08_30.ckpt"
+if __name__ == "__main__":
+	checkpoint_name = "checkpoints/inception_resnet_v2_2016_08_30.ckpt"
+	file_name = "../addis_ababa/Addis_processed.csv"
 	lr = 0.01
-	num_epochs = 5
-	batch_size = 128
-	print_every = 5
 	binary_loss_weighting = 0.5
+	batch_size = 100
+	num_epochs = 5
+	print_every = 5
 
-	data = Data("")
+	data = AddisAbaba(file_name)
 
+	tf.reset_default_graph()
 	placeholders = build_placeholders(data)
-	end_points = build_resnet(placeholders, checkpoint_name)
+	end_points, resnet_variables = build_resnet(placeholders, checkpoint_name, name="resnet")
 	build_predictions(end_points, data)
-	build_loss(end_points, placeholders)
-	acc = build_accuracy()
+	build_loss(end_points, placeholders, binary_loss_weighting)
+	acc = build_accuracy(end_points, placeholders)
 	train_op = build_optimizer(end_points, lr)
 
+	#resnet_variables =  tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="resnet")
+
+	checkpoint_resnet_variables = []
+	for var in resnet_variables:
+		if "biases" not in var.name: checkpoint_resnet_variables.append(var)
+	saver = tf.train.Saver(var_list = checkpoint_resnet_variables)
+
 	sess = tf.Session()
+	saver.restore(sess, checkpoint_name)
 	sess.run(tf.initialize_all_variables())
 
 	for epoch in range(num_epochs):
