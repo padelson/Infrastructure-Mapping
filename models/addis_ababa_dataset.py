@@ -1,7 +1,22 @@
+#The basic idea here is that x_batch wants to read  in .npy files as needed instead of storing all the data in one big matrix too big for memory
+#the ugly stuff at top basically defines all the path names as needed
+#change data_source and sat as needed to run on different x data.
+
+filename_dict ={'addis_s1' : 's1_median_addis_multiband_500x500_','addis_l8' : 'l8_median_addis_multiband_500x500_', 'addis_skysat' : 'skysat_median_addis_multiband_500x500_', 'afro_s1' : 's1_median_afrobarometer_multiband_500x500_', 'afro_l8': 'l8_median_afrobarometer_multiband_500x500_'}
+filetail = ".0.npy"
+pathname = "/mnt/mounted_bucket/saved_npy/"
+num_files = {'addis' : 3591, 'afro' : 7022}
+data_source = 'addis'
+data_len = num_files[data_source]
+sat = 's1'
+batch_source = pathname + filename_dict[data_source + '_' + sat]
+
+
 class AddisAbaba(Dataset):
 	def __init__(self, filename, train_test_split = 0.8):
-		data = pandas.read_csv(filename)
-
+                
+                data = pandas.read_csv(filename)
+                
 		self.num_binary_features = len(util.binary_features)
 		self.num_continuous_features = len(util.continuous_features)
 
@@ -9,12 +24,15 @@ class AddisAbaba(Dataset):
 		self.y_continuous = data[util.continuous_features].values
 
 		split_value = int(len(self.y_binary) * 0.8)
-
-		self.get_x()
+                
+		#self.get_x()
 		self.create_splits()
 
 		self.size = len(self.y_binary_train)
+                
 
+
+        
 	def create_splits(self):
 		[self.y_binary_train, self.y_continuous_train, self.x_train] = map(lambda x: x[:split_value], [self.y_binary, self.y_continuous, self.x])
 		[self.y_binary_test, self.y_continuous_test, self.x_test] = map(lambda x: x[split_value:], [self.y_binary, self.y_continuous, self.x])
@@ -25,10 +43,17 @@ class AddisAbaba(Dataset):
 		return self.num_batches
 
 	def get_x_batch(iteration):
-		if (iteration == self.num_batches-1):
-			return self.x[self.batch_size * iteration :]
-		else:
-			return self.x[self.batch_size * iteration : self.batch_size * (iteration + 1)]
+                curr_id = iteration*self.batch_size + 1 #everything is 1 indexed
+                x_batch = []
+                for i in range(curr_id, curr_id+self.batch_size):
+                        if i > data_len:
+                                break
+                        x_batch.append(np.load(batch_source+str(i)+tail)) #loads npy file
+                return np.array(x_batch) #didn't want to mess up stacking. Is this cheating?
+		#if (iteration == self.num_batches-1):
+		#	return self.x[self.batch_size * iteration :]
+		#else:
+		#	return self.x[self.batch_size * iteration : self.batch_size * (iteration + 1)]
 
 	def get_y_batch(iteration):
 		if (iteration == self.num_batches-1):
