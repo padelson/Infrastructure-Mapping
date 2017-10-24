@@ -1,6 +1,7 @@
 from keras.models import Sequential 
 from keras.layers import Dense, Activation 
 from sklearn.metrics import f1_score
+import pickle
 
 def f1_score_metric(y_true, y_pred, average='micro'):
 	return f1_score(y_true, y_pred)
