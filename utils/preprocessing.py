@@ -3,7 +3,6 @@ import numpy as np
 
 from matplotlib import cm
 import matplotlib.pyplot as plt
-import numpy as np
 import addis as util
 
 def initialize_data(datafile):
@@ -137,6 +136,8 @@ def run_pipeline():
 	data = initialize_data('Addis_data.csv')
 	binary_features, continuous_features = [], []
 	data = create_columns(data, (binary_features, continuous_features))
+	np.save('addis_binary_features.npy', binary_features)
+	np.save('addis_continuous_features.npy', continuous_features)
 	
 	return data
 
@@ -145,4 +146,4 @@ def save_as_csv(data, filename):
 
 if __name__ == "__main__":
 	data = run_pipeline()
-	to_csv(data, "Addis_data_processed.csv")
+	save_as_csv(data, "Addis_data_processed.csv")

@@ -1,7 +1,7 @@
 from resnet import inception_resnet_v2
 import tensorflow as tf
 import pandas
-import util
+from utils import addis as util
 import numpy as np
 from datasets import *
 
