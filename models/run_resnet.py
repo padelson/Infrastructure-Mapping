@@ -68,7 +68,7 @@ def build_optimizer(end_points, lr):
 
 if __name__ == "__main__":
 	checkpoint_name = "checkpoints/inception_resnet_v2_2016_08_30.ckpt"
-	file_name = "../addis_ababa/Addis_processed.csv"
+	file_name = "../utils/Addis_data_processed_2.csv"
 	lr = 0.01
 	binary_loss_weighting = 0.5
 	batch_size = 100
