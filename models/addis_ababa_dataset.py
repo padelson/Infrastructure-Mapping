@@ -15,10 +15,9 @@ filename_dict ={'addis_s1' : 's1_median_addis_multiband_500x500_','addis_l8' : '
 filetail = ".0.npy"
 pathname = "/mnt/mounted_bucket/saved_npy/"
 num_files = {'addis' : 3591, 'afro' : 7022}
-num_files = {'addis' : 100, 'afro' : 7022}
 data_source = 'addis'
-data_len = num_files[data_source]
 sat = 's1'
+data_len = num_files[data_source]
 batch_source = pathname + filename_dict[data_source + '_' + sat]
 
 class AddisAbaba(Dataset):
@@ -42,12 +41,12 @@ class AddisAbaba(Dataset):
 		return len(util.continuous_features)
 
 	def num_train_batches(self):
-		self.num_train_batches = self.num_train / self.batch_size
-		return self.num_train_batches
+		num_train_batches = self.num_train / self.batch_size
+		return num_train_batches
 
 	def num_test_batches(self):
-		self.num_test_batches = self.num_test / self.batch_size
-		return self.num_test_batches
+		num_test_batches = self.num_test / self.batch_size
+		return num_test_batches
 
 	def get_x_batch(self, iteration):
 		curr_id = iteration*self.batch_size + 1 #everything is 1 indexed
@@ -69,8 +68,8 @@ class AddisAbaba(Dataset):
 
 	def get_x_test_batch(self, iteration):
 		x_batch = []
-		num_test = self.num_ids - self.training_size
-		curr_id = self.training_size + i * self.batch_size + 1 # All is 1 indexed
+		num_test = self.num_ids - self.num_train
+		curr_id = self.num_train + iteration * self.batch_size + 1 # All is 1 indexed
 
 		for i in range(curr_id, curr_id + self.batch_size):
 			if i > data_len:
@@ -85,5 +84,4 @@ class AddisAbaba(Dataset):
 		return np.array(x_batch)
 
 	def get_y_test_batch(self, iteration):
-		return 	self.y_binary[self.training_size + self.batch_size * iteration : self.training_size + self.batch_size*(iteration+1)], 
-		self.y_continuous[self.training_size + self.batch_size * iteration : self.training_size + self.batch_size * (iteration+1)]
+		return 	self.y_binary[self.num_train + self.batch_size * iteration : self.num_train + self.batch_size*(iteration+1)], self.y_continuous[self.num_train + self.batch_size * iteration : self.num_train + self.batch_size * (iteration+1)]
