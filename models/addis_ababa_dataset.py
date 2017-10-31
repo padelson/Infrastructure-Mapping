@@ -11,10 +11,10 @@ import numpy as np
 import os
 import scipy.misc as M
 
-filename_dict ={'addis_s1' : 's1_median_addis_multiband_500x500_','addis_l8' : 'l8_median_addis_multiband_500x500_', 'addis_skysat' : 'skysat_median_addis_multiband_500x500_', 'afro_s1' : 's1_median_afrobarometer_multiband_500x500_', 'afro_l8': 'l8_median_afrobarometer_multiband_500x500_'}
+filename_dict ={'addis_s1' : 's1_median_addis_multiband_500x500_','addis_l8' : 'l8_median_addis_multiband_500x500_', 'addis_skysat' : 'skysat_median_addis_multiband_500x500_'}
 filetail = ".0.npy"
 pathname = "/mnt/mounted_bucket/saved_npy/"
-num_files = {'addis' : 3591, 'afro' : 7022}
+# num_files = {'addis' : 3591, 'afro' : 7022}
 num_files = {'addis' : 100, 'afro' : 7022}
 data_source = 'addis'
 data_len = num_files[data_source]
@@ -85,5 +85,5 @@ class AddisAbaba(Dataset):
 		return np.array(x_batch)
 
 	def get_y_test_batch(self, iteration):
-		return 	self.y_binary[self.training_size + self.batch_size * iteration : self.training_size + self.batch_size*(iteration+1)], 
-		self.y_continuous[self.training_size + self.batch_size * iteration : self.training_size + self.batch_size * (iteration+1)]
+		return self.y_binary[self.training_size + self.batch_size * iteration : self.training_size + self.batch_size*(iteration+1)], 
+				self.y_continuous[self.training_size + self.batch_size * iteration : self.training_size + self.batch_size * (iteration+1)]
