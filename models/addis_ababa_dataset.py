@@ -3,7 +3,7 @@
 #change data_source and sat as needed to run on different x data.
 
 import sys
-sys.path.append("")
+sys.path.append("..")
 from utils import addis as util
 from datasets import Dataset
 import pandas
@@ -59,8 +59,9 @@ class AddisAbaba(Dataset):
 			elif os.path.exists(batch_source+str(i)+".npy"+filetail):
 				x_batch.append(np.load(batch_source+str(i)+".npy"+filetail))
 			else:
-				print batch_source+str(i)+".npy"+filetail
-				raise Exception("Sattelite image %d not found!" % i)
+				x_batch.append(np.random.rand(500, 500, 5))
+				# print batch_source+str(i)+".npy"+filetail
+				# raise Exception("Sattelite image %d not found!" % i)
 		return np.array(x_batch)
 
 	def get_y_batch(self, iteration):
