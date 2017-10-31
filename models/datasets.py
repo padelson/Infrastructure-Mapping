@@ -4,7 +4,14 @@ class Dataset():
 	__metaclass__ = abc.ABCMeta
 
 	@abc.abstractmethod
-	def num_batches(self, batch_size):
+	def num_train_batches(self, batch_size):
+		""" 
+		Returns the number of training batches
+		"""
+		return
+
+	@abc.abstractmethod
+	def num_test_batches(self, batch_size):
 		""" 
 		Returns the number of training batches
 		"""
@@ -25,14 +32,14 @@ class Dataset():
 		return
 
 	@abc.abstractmethod
-	def get_x_test(self):
+	def get_x_test_batch(self, i):
 		"""
 		Returns the entire test input ndarray
 		"""
 		return
 
 	@abc.abstractmethod
-	def get_y_test(self):
+	def get_y_test_batch(self, i):
 		"""
 		Returns the entire test output ndarray as a tuple (category ndarray, continuous ndarray)
 		"""
@@ -51,5 +58,4 @@ class Dataset():
 		Returns the number of continuous features
 		"""
 		return
-
 

@@ -21,42 +21,10 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.applications.resnet50 import ResNet50, preprocess_input
 
 #### TO DO
-
 # Get accuracy metrics and print them out for each category (in a CSV file)
 # Get F1 score and print them out for each category
-
-
-
-class DataGenerator():
-
-	def __init__(self, data, binary = True, continuous = True):
-		self.data = data
-		self.num_batches = data.num_batches(batch_size)
-		self.binary = True
-		self.continuous = True
-
-
-	def generate(self):
-		for i in range(self.num_batches):
-			x_train_batch = preprocess(data.get_x_batch(i))
-
-			y_train_binary_batch, y_train_continuous_batch = data.get_y_batch(i)
-
-			output_dict = {}
-			if self.binary: output_dict['binary'] = y_train_binary_batch
-			if self.continuous: output_dict['continuous'] = y_train_continuous_batch
-
-			yield x_train_batch, output_dict
-
-
-# class MetricsCallback(keras.callbacks.Callback):
-
-# 	def __init__(self, model, data):
-# 		self.model = model
-# 		self.data = data
-
-# 	def on_epoch_end(self, epoch, logs=None):
-# 		preds = model.predict(self.data[])
+# Normalize
+###########
 
 def all_acc(y_true, y_pred):
 	equals = np.equal(y_true, y_pred).astype(float)
@@ -69,12 +37,55 @@ def preprocess(x):
 	x = np.resize(x, (x.shape[0], 224, 224, 5))
 	return x[:, :, :, :3]
 
-file_name = "../Addis_data_processed.csv"
-data = AddisAbaba(file_name)
+class DataGenerator():
 
-batch_size = 16
+	def __init__(self, data, binary = True, continuous = True):
+		self.data = data
+		self.num_train_batches = data.num_train_batches()
+		self.num_test_batches = data.num_test_batches()
+		self.binary = True
+		self.continuous = True
+
+	def train_generate(self):
+		for i in range(self.num_train_batches):
+			x_train_batch = preprocess(data.get_x_batch(i))
+
+			y_train_binary_batch, y_train_continuous_batch = data.get_y_batch(i)
+
+			output_dict = {}
+			if self.binary: output_dict['binary'] = y_train_binary_batch
+			if self.continuous: output_dict['continuous'] = y_train_continuous_batch
+
+			yield x_train_batch, output_dict
+
+	def eval_generator(self):
+		for i in range(self.num_test_batches):
+			x_test_batch = preprocess(data.get_x_test_batch(i))
+			y_test_binary_batch, y_test_continuous_batch = data.get_y_test_batch(i)
+
+			output_dict = {}
+			if self.binary: output_dict['binary'] = y_test_binary_batch
+			if self.continuous: output_dict['continuous'] = y_test_continuous_batch
+
+			yield x_test_batch, output_dict
+
+class MetricsCallback(keras.callbacks.Callback):
+
+	def __init__(self, model, data, generator):
+		self.model = model
+		self.data = data
+		self.data_generator = generator
+
+	def on_epoch_end(self, epoch, logs=None):
+		preds = model.predict_generator(self.data_generator, data_generator.num_batches)
+		print preds.shape
+
+batch_size = 2
 epochs = 2
 input_shape = (224, 224, 3)
+
+file_name = "../Addis_data_processed.csv"
+data = AddisAbaba(file_name, batch_size)
 
 def do_binary():
 	model = ResNet50(include_top=False, weights='imagenet',
@@ -87,8 +98,9 @@ def do_binary():
 
 	data_generator = DataGenerator(data, continuous = False)
 
-	model.fit_generator(data_generator.generate(), data_generator.num_batches, epochs = 2)
+	metrics = MetricsCallback(model, data, data_generator)
 
+	model.fit_generator(data_generator.train_generate(), data_generator.num_train_batches, callbacks=[metrics], epochs = 2)
 
 def do_all():
 	model = ResNet50(include_top=False, weights='imagenet',
@@ -103,6 +115,7 @@ def do_all():
 
 	data_generator = DataGenerator(data)
 
-	model.fit_generator(data_generator.generate(), data_generator.num_batches, epochs = 2)
+	model.fit_generator(data_generator.generate(), data_generator.num_train_batches, epochs = 2)
 
-do_binary()
+if __name__ == "__main__":
+	do_binary()

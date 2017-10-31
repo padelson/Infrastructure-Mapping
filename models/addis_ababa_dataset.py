@@ -15,13 +15,14 @@ filename_dict ={'addis_s1' : 's1_median_addis_multiband_500x500_','addis_l8' : '
 filetail = ".0.npy"
 pathname = "/mnt/mounted_bucket/saved_npy/"
 num_files = {'addis' : 3591, 'afro' : 7022}
+num_files = {'addis' : 100, 'afro' : 7022}
 data_source = 'addis'
 data_len = num_files[data_source]
 sat = 's1'
 batch_source = pathname + filename_dict[data_source + '_' + sat]
 
 class AddisAbaba(Dataset):
-	def __init__(self, filename, train_test_split = 0.8):
+	def __init__(self, filename, batch_size, train_test_split = 0.9):
                 
 		data = pandas.read_csv(filename)
 
@@ -29,16 +30,24 @@ class AddisAbaba(Dataset):
 		self.y_continuous = data[util.continuous_features].values
 
 		self.num_ids = num_files['addis']
-		self.training_size = self.num_ids * 0.8
-        
-	def create_splits(self):
-		[self.y_binary_train, self.y_continuous_train, self.x_train] = map(lambda x: x[:self.split_value], [self.y_binary, self.y_continuous, self.x])
-		[self.y_binary_test, self.y_continuous_test, self.x_test] = map(lambda x: x[self.split_value:], [self.y_binary, self.y_continuous, self.x])
+		self.num_train = int(self.num_ids * train_test_split)
+		self.num_test = self.num_ids - self.num_train
 
-	def num_batches(self, batch_size):
-		self.num_batches = self.training_size / batch_size
 		self.batch_size = batch_size
-		return self.num_batches
+        
+	def num_binary_features(self):
+		return len(util.binary_features)
+
+	def num_continuous_features(self):
+		return len(util.continuous_features)
+
+	def num_train_batches(self):
+		self.num_train_batches = self.num_train / self.batch_size
+		return self.num_train_batches
+
+	def num_test_batches(self):
+		self.num_test_batches = self.num_test / self.batch_size
+		return self.num_test_batches
 
 	def get_x_batch(self, iteration):
 		curr_id = iteration*self.batch_size + 1 #everything is 1 indexed
@@ -53,24 +62,28 @@ class AddisAbaba(Dataset):
 			else:
 				print batch_source+str(i)+".npy"+filetail
 				raise Exception("Sattelite image %d not found!" % i)
-		return np.array(x_batch) #didn't want to mess up stacking. Is this cheating?
+		return np.array(x_batch)
 
 	def get_y_batch(self, iteration):
 		return self.y_binary[self.batch_size * iteration : self.batch_size*(iteration+1)], self.y_continuous[self.batch_size * iteration : self.batch_size * (iteration+1)]
 
-		# if (iteration == self.num_batches-1):
-		# 	return self.y_binary[self.batch_size * iteration :], self.y_continuous[self.batch_size * iteration :]
-		# else:
-		# 	return self.y_binary[self.batch_size * iteration : self.batch_size * (iteration + 1)], self.y_continuous[self.batch_size * iteration : self.batch_size * (iteration + 1)]
+	def get_x_test_batch(self, iteration):
+		x_batch = []
+		num_test = self.num_ids - self.training_size
+		curr_id = self.training_size + i * self.batch_size + 1 # All is 1 indexed
 
-	def num_binary_features(self):
-		return len(util.binary_features)
+		for i in range(curr_id, curr_id + self.batch_size):
+			if i > data_len:
+				break
+			if os.path.exists(batch_source+str(i)+filetail):
+				x_batch.append(np.load(batch_source+str(i)+filetail)) #loads npy file
+			elif os.path.exists(batch_source+str(i)+".npy"+filetail):
+				x_batch.append(np.load(batch_source+str(i)+".npy"+filetail))
+			else:
+				print batch_source+str(i)+".npy"+filetail
+				raise Exception("Sattelite image %d not found!" % i)
+		return np.array(x_batch)
 
-	def num_continuous_features(self):
-		return len(util.continuous_features)
-
-	def get_x_test(self):
-		return self.x_test
-
-	def get_y_test(self):
-		return self.y_binary_test, self.y_continuous_test
+	def get_y_test_batch(self, iteration):
+		return 	self.y_binary[self.training_size + self.batch_size * iteration : self.training_size + self.batch_size*(iteration+1)], 
+		self.y_continuous[self.training_size + self.batch_size * iteration : self.training_size + self.batch_size * (iteration+1)]
