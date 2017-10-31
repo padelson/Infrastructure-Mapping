@@ -5,6 +5,7 @@ from utils import addis as util
 import numpy as np
 from addis_ababa_dataset import AddisAbaba
 from datasets import *
+import os
 
 import numpy as np
 import keras
@@ -19,14 +20,43 @@ from keras.layers.normalization import BatchNormalization
 from keras.preprocessing.image import ImageDataGenerator
 from keras.applications.resnet50 import ResNet50, preprocess_input
 
-def binary_acc(y_true, y_pred):
-	a = y_true - y_pred
-	b = K.abs(a)
-	c = K.mean(b)
-	print K.shape(y_true[0][0])
-	print K.shape(y_pred)
+#### TO DO
 
-	return c
+# Get accuracy metrics and print them out for each category (in a CSV file)
+# Get F1 score and print them out for each category
+
+
+
+class DataGenerator():
+
+	def __init__(self, data, binary = True, continuous = True):
+		self.data = data
+		self.num_batches = data.num_batches(batch_size)
+		self.binary = True
+		self.continuous = True
+
+
+	def generate(self):
+		for i in range(self.num_batches):
+			x_train_batch = preprocess(data.get_x_batch(i))
+
+			y_train_binary_batch, y_train_continuous_batch = data.get_y_batch(i)
+
+			output_dict = {}
+			if self.binary: output_dict['binary'] = y_train_binary_batch
+			if self.continuous: output_dict['continuous'] = y_train_continuous_batch
+
+			yield x_train_batch, output_dict
+
+
+# class MetricsCallback(keras.callbacks.Callback):
+
+# 	def __init__(self, model, data):
+# 		self.model = model
+# 		self.data = data
+
+# 	def on_epoch_end(self, epoch, logs=None):
+# 		preds = model.predict(self.data[])
 
 def all_acc(y_true, y_pred):
 	equals = np.equal(y_true, y_pred).astype(float)
@@ -35,36 +65,44 @@ def all_acc(y_true, y_pred):
 
 	return mean_accuracy
 
-
-
-
+def preprocess(x):
+	x = np.resize(x, (x.shape[0], 224, 224, 5))
+	return x[:, :, :, :3]
 
 file_name = "../Addis_data_processed.csv"
 data = AddisAbaba(file_name)
-batch_size = 5
-epochs = 1
+
+batch_size = 16
+epochs = 2
 input_shape = (224, 224, 3)
 
-model = ResNet50(include_top=False, weights='imagenet',
-                 pooling='max', input_shape=input_shape)
+def do_binary():
+	model = ResNet50(include_top=False, weights='imagenet',
+	                 pooling='max', input_shape=input_shape)
 
-binary_pred = Dense(data.num_binary_features(), activation='sigmoid', name = 'binary')(model.layers[-1].output)
-binary_continuous = Dense(data.num_continuous_features(), activation='linear', name='continuous')(model.layers[-1].output)
-model = Model(input=model.input, output=[binary_pred, binary_continuous])
-model.compile(loss={'binary': keras.losses.binary_crossentropy, 'continuous': keras.losses.mean_squared_error},
-              optimizer=keras.optimizers.Adam(lr=0.0001, decay=0.005),
-              metrics = {'binary': binary_acc})
+	binary_pred = Dense(data.num_binary_features(), activation='sigmoid', name = 'binary')(model.layers[-1].output)
+	model = Model(input=model.input, output=binary_pred)
+	model.compile(loss=keras.losses.binary_crossentropy,
+	              optimizer=keras.optimizers.Adam(lr=0.0001, decay=0.005))
 
-x_train = np.random.rand(15, 224, 224, 3)
-y_train_binary = data.y_binary[:15]
-y_train_continuous = data.y_continuous[:15]
+	data_generator = DataGenerator(data, continuous = False)
 
-model.fit(x_train, {'binary': y_train_binary, 'continuous': y_train_continuous},
-          batch_size=batch_size,
-          epochs=epochs)
-
-preds = model.predict(x_train)
-
-print all_acc(preds[0], y_train_binary)
+	model.fit_generator(data_generator.generate(), data_generator.num_batches, epochs = 2)
 
 
+def do_all():
+	model = ResNet50(include_top=False, weights='imagenet',
+	                 pooling='max', input_shape=input_shape)
+
+	binary_pred = Dense(data.num_binary_features(), activation='sigmoid', name = 'binary')(model.layers[-1].output)
+	binary_continuous = Dense(data.num_continuous_features(), activation='linear', name='continuous')(model.layers[-1].output)
+	model = Model(input=model.input, output=[binary_pred, binary_continuous])
+	model.compile(loss={'binary': keras.losses.binary_crossentropy, 'continuous': keras.losses.mean_squared_error},
+	              optimizer=keras.optimizers.Adam(lr=0.0001, decay=0.005),
+	              metrics = {'binary': binary_acc})
+
+	data_generator = DataGenerator(data)
+
+	model.fit_generator(data_generator.generate(), data_generator.num_batches, epochs = 2)
+
+do_binary()
