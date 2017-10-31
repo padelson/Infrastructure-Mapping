@@ -1,12 +1,14 @@
 import pandas
 import numpy as np
+import sys
+sys.path.append("../")
 
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import addis as util
 
 def initialize_data(datafile):
-	data = pandas.read_csv('Addis_data.csv')
+	data = pandas.read_csv(datafile)
 	return data
 
 def change_feature_names(data):
@@ -27,22 +29,22 @@ def create_columns(data, feature_types):
 		print "Mode F/O: %s" % feature_dict['orig_name']
 		if 'o' in feature_dict['mode']:
 			if feature_dict['orig_name'] == 'bl_dw42':
-				func = lambda x: 0 if x['bl_dw41'].values == 2 else x['bl_dw42'].values[0]
+				func = lambda x: 0 if x['bl_dw41'].values[0] == 2 else (x['bl_dw42'].values[0] if (not (np.isnan(x['bl_dw42'].values[0]) or x['bl_dw42'].values[0] < 0)) else feature_dict['replace_with'])
 				data = data.assign(feat = get_assign_list(func, feature_dict, data))
 				data = data.rename(columns = {'feat': feature_dict['new_name']})
 
 			if feature_dict['orig_name'] == 'bl_dw63':
-				func = lambda x: 0 if x['bl_dw56'].values == 2 else x['bl_dw63'].values[0]
+				func = lambda x: 0 if x['bl_dw56'].values[0] == 2 else (x['bl_dw63'].values[0] if (not (np.isnan(x['bl_dw63'].values[0]) or x['bl_dw63'].values[0] < 0)) else feature_dict['replace_with'])
 				data = data.assign(feat = get_assign_list(func, feature_dict, data))
 				data = data.rename(columns = {'feat': feature_dict['new_name']})
 
 			if feature_dict['orig_name'] == 'bl_dw64':
-				func = lambda x: 0 if x['bl_dw63'].values == 0 else x['bl_dw63'].values[0]
+				func = lambda x: 0 if x['bl_dw63'].values[0] == 0 else (x['bl_dw64'].values[0] if (not (np.isnan(x['bl_dw64'].values[0]) or x['bl_dw64'].values[0] < 0)) else feature_dict['replace_with'])
 				data = data.assign(feat = get_assign_list(func, feature_dict, data))
 				data = data.rename(columns = {'feat': feature_dict['new_name']})
 
 			if feature_dict['orig_name'] == 'bl_sd46':
-				func = lambda x: 150 if x['bl_dw45'].values == -888 else x['bl_dw63'].values[0]
+				func = lambda x: 150 if x['bl_dw45'].values[0] == -888 else (x['bl_sd46'].values[0] if (not (np.isnan(x['bl_sd46'].values[0]) or x['bl_sd46'].values[0] < 0)) else feature_dict['replace_with'])
 				data = data.assign(feat = get_assign_list(func, feature_dict, data))
 				data = data.rename(columns = {'feat': feature_dict['new_name']})
 
@@ -107,10 +109,10 @@ def create_columns(data, feature_types):
 				feature_types[0].append(name)
 
 		if 'c' in feature_dict['mode']:
-			data = data.rename(columns = {feature_dict['orig_name']: feature_dict['new_name']})
+			func = lambda x: feature_dict['replace_with'] if (np.isnan(x[feature_dict['orig_name']].values[0]) or x[feature_dict['orig_name']].values[0] < 0) else x[feature_dict['orig_name']].values[0]
+			data = data.assign(feat = get_assign_list(func, feature_dict, data))
+			data = data.rename(columns = {'feat': feature_dict['new_name']})
 			feature_types[1].append(feature_dict['new_name'])
-
-			continue
 
 		if 'r' in feature_dict['mode']:
 			func = lambda x: 1 if np.isnan(x[feature_dict['orig_name']].values)[0] else 0
@@ -133,11 +135,11 @@ def create_columns(data, feature_types):
 	return data
 
 def run_pipeline():
-	data = initialize_data('Addis_data.csv')
+	data = initialize_data('../Addis_data.csv')
 	binary_features, continuous_features = [], []
 	data = create_columns(data, (binary_features, continuous_features))
-	np.save('addis_binary_features.npy', binary_features)
-	np.save('addis_continuous_features.npy', continuous_features)
+	# np.save('addis_binary_features.npy', binary_features)
+	# np.save('addis_continuous_features.npy', continuous_features)
 	
 	return data
 
@@ -146,4 +148,4 @@ def save_as_csv(data, filename):
 
 if __name__ == "__main__":
 	data = run_pipeline()
-	save_as_csv(data, "Addis_data_processed.csv")
+	save_as_csv(data, "Addis_data_processed_2.csv")

@@ -43,23 +43,24 @@ class AddisAbaba(Dataset):
 	def num_batches(self, batch_size):
 		self.num_batches = self.size / batch_size + (1 if self.size % batch_size == 0 else 0)
 		self.batch_size = batch_size
+		return 10
 		return self.num_batches
 
 	def get_x_batch(self, iteration):
-		return np.random.rand(100, 299, 299, 3)
+		return np.random.rand(10, 299, 299, 3)
 
-	# def get_x_batch(iteration):
- #                curr_id = iteration*self.batch_size + 1 #everything is 1 indexed
- #                x_batch = []
- #                for i in range(curr_id, curr_id+self.batch_size):
- #                        if i > data_len:
- #                                break
- #                        x_batch.append(np.load(batch_source+str(i)+tail)) #loads npy file
- #                return np.array(x_batch) #didn't want to mess up stacking. Is this cheating?
-		#if (iteration == self.num_batches-1):
-		#	return self.x[self.batch_size * iteration :]
-		#else:
-		#	return self.x[self.batch_size * iteration : self.batch_size * (iteration + 1)]
+	def get_x_batch(iteration):
+                curr_id = iteration*self.batch_size + 1 #everything is 1 indexed
+                x_batch = []
+                for i in range(curr_id, curr_id+self.batch_size):
+                        if i > data_len:
+                                break
+                        x_batch.append(np.load(batch_source+str(i)+tail)) #loads npy file
+                return np.array(x_batch) #didn't want to mess up stacking. Is this cheating?
+		if (iteration == self.num_batches-1):
+			return self.x[self.batch_size * iteration :]
+		else:
+			return self.x[self.batch_size * iteration : self.batch_size * (iteration + 1)]
 
 	def get_y_batch(self, iteration):
 		if (iteration == self.num_batches-1):
