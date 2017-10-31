@@ -13,8 +13,9 @@ import scipy.misc as M
 
 filename_dict ={'afro_s1' : 's1_median_afrobarometer_multiband_ascending_500x500_', 'afro_l8': 'l8_median_afrobarometer_multiband_500x500_'}
 filetail = ".0.npy"
-pathname = "/mnt/mounted_bucket/saved_npy/"
+pathname = "/mnt/mounted_bucket/saved_img/landsat/"
 num_files = {'addis' : 3591, 'afro' : 7022}
+num_files = {'addis' : 3591, 'afro' : 100}
 data_source = 'afro'
 data_len = num_files[data_source]
 sat = 's1'
@@ -22,9 +23,9 @@ batch_source = pathname + filename_dict[data_source + '_' + sat]
 
 
 class Afrobarometer(Dataset):
-	def __init__(self, filename, batch_size, train_test_split = 0.8):
+	def __init__(self, filename, batch_size, train_test_split = 0.9):
                 
-        data = pandas.read_csv(filename)
+        	data = pandas.read_csv(filename)
 
 		self.y_binary = data[util.binary_features].values
 		self.y_continuous = data[util.continuous_features].values
@@ -42,12 +43,12 @@ class Afrobarometer(Dataset):
 		return len(util.continuous_features)
 
 	def num_train_batches(self):
-		self.num_train_batches = self.num_train / self.batch_size
-		return self.num_train_batches
+		num_train_batches = self.num_train / self.batch_size
+		return num_train_batches
 
 	def num_test_batches(self):
-		self.num_test_batches = self.num_test / self.batch_size
-		return self.num_test_batches
+		num_test_batches = self.num_test / self.batch_size
+		return num_test_batches
 
 	def get_x_batch(self, iteration):
 		curr_id = iteration*self.batch_size + 1 #everything is 1 indexed
@@ -58,8 +59,9 @@ class Afrobarometer(Dataset):
 			if os.path.exists(batch_source+str(i)+filetail):
 				x_batch.append(np.load(batch_source+str(i)+filetail)) #loads npy file
 			else:
-				print batch_source+str(i)+".npy"+filetail
-				raise Exception("Satellite image %d not found!" % i)
+				x_batch.append(np.random.rand(500, 500, 5))
+				# print batch_source+str(i)+".npy"+filetail
+				# raise Exception("Satellite image %d not found!" % i)
 		return np.array(x_batch)
 
 	def get_y_batch(self, iteration):
@@ -67,8 +69,8 @@ class Afrobarometer(Dataset):
 
 	def get_x_test_batch(self, iteration):
 		x_batch = []
-		num_test = self.num_ids - self.training_size
-		curr_id = self.training_size + i * self.batch_size + 1 # All is 1 indexed
+		num_test = self.num_ids - self.num_train
+		curr_id = self.num_train + iteration * self.batch_size + 1 # All is 1 indexed
 
 		for i in range(curr_id, curr_id + self.batch_size):
 			if i > data_len:
@@ -81,5 +83,4 @@ class Afrobarometer(Dataset):
 		return np.array(x_batch)
 
 	def get_y_test_batch(self, iteration):
-		return self.y_binary[self.training_size + self.batch_size * iteration : self.training_size + self.batch_size*(iteration+1)], 
-				self.y_continuous[self.training_size + self.batch_size * iteration : self.training_size + self.batch_size * (iteration+1)]
+		return self.y_binary[self.num_train + self.batch_size * iteration : self.num_train + self.batch_size*(iteration+1)], self.y_continuous[self.num_train + self.batch_size * iteration : self.num_train + self.batch_size * (iteration+1)]
