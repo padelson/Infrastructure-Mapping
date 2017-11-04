@@ -48,9 +48,15 @@ def all_f1(y_true, y_pred):
 	return np.array(scores)
 
 def preprocess(x):
-	x = np.resize(x, (x.shape[0], 224, 224, 5))
+	# x = np.resize(x, (x.shape[0], 224, 224, 5))
 
-	return x[:, :, :, :3]
+	a = x[:, :, :, :3]
+	#b = (a - np.mean(a)) / 256
+
+	a = a - a.mean(axis=0)
+	a = a / np.sqrt((a ** 2).sum(axis=1))[:,None]
+
+	return a
 
 class DataGenerator():
 
@@ -92,8 +98,9 @@ class MetricsCallback(keras.callbacks.Callback):
 		self.f1_scores = []
 
 	def on_epoch_end(self, epoch, logs=None):
+		print "On epoch end!"
 		data_generator = DataGenerator(self.data, continuous=False)
-		y_preds = self.model.predict_generator(data_generator.train_generate(), self.data.num_train_batches())
+		y_preds = self.model.predict_generator(DataGenerator(data, continuous = False).train_generate(), self.data.num_train_batches())
 		y_true = self.data.y_binary[:y_preds.shape[0]]
 
 		self.accuracies.append(all_acc(y_true, y_preds))
@@ -112,28 +119,29 @@ def train_on_binary(data, output_filename):
 
 	metrics = MetricsCallback(model, data)
 	model.fit_generator(DataGenerator(data, continuous = False).train_generate(), data.num_train_batches(), callbacks = [metrics], epochs = epochs)
-	# score = model.evaluate_generator(DataGenerator(data, continuous = False).eval_generate(), data.num_test_batches())
+	#score = model.evaluate_generator(DataGenerator(data, continuous = False).eval_generate(), data.num_test_batches())
 	
 	myfile = open(output_filename, 'w')
 	with myfile:
 		writer = csv.writer(myfile)
+		writer.writerow(util.binary_features)
 		writer.writerow(['accuracies'])
 		writer.writerows(metrics.accuracies)
 		writer.writerow(['f1_scores'])
 		writer.writerows(metrics.f1_scores)
-		# writer.writerow(['score'])
-		# writer.writerows([score])
+		writer.writerow(['score'])
+		# writer.writerow([score])
 
 if __name__ == "__main__":
 	batch_size = 32
-	epochs = 5
+	epochs = 7
 	input_shape = (224, 224, 3)
 	learning_rate = 0.00001
 
 	file_name = "../Addis_data_processed.csv"
 	data = AddisAbaba(file_name, batch_size)
 
-	train_on_binary(data, "test1.csv")
+	train_on_binary(data, "test_final_last.csv")
 
 
 	batch_size = 32
