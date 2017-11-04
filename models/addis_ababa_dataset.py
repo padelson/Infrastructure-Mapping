@@ -13,7 +13,8 @@ import scipy.misc as M
 
 filename_dict ={'addis_s1' : 's1_median_addis_multiband_500x500_','addis_l8' : 'l8_median_addis_multiband_500x500_', 'addis_skysat' : 'skysat_median_addis_multiband_500x500_', 'afro_s1' : 's1_median_afrobarometer_multiband_500x500_', 'afro_l8': 'l8_median_afrobarometer_multiband_500x500_'}
 filetail = ".0.npy"
-pathname = "/mnt/mounted_bucket/saved_npy/"
+# pathname = "/mnt/mounted_bucket/saved_npy/"
+pathname = "~/infrastructure-mapping/small_npy/"
 num_files = {'addis' : 3591, 'afro' : 7022}
 data_source = 'addis'
 sat = 's1'
@@ -21,21 +22,24 @@ data_len = num_files[data_source]
 batch_source = pathname + filename_dict[data_source + '_' + sat]
 
 class AddisAbaba(Dataset):
-	def __init__(self, filename, batch_size, train_test_split = 0.9):
+	def __init__(self, filename, batch_size, num_ids = 3591, which_features = 'all', train_test_split = 0.9):
                 
 		data = pandas.read_csv(filename)
 
 		self.y_binary = data[util.binary_features].values
 		self.y_continuous = data[util.continuous_features].values
 
-		self.num_ids = num_files['addis']
+		assert(num_ids < 3591)
+		self.num_ids = num_ids
 		self.num_train = int(self.num_ids * train_test_split)
 		self.num_test = self.num_ids - self.num_train
 
 		self.batch_size = batch_size
+
+		self.which_features = range(len(util.binary_features)) if which_features == 'all' else which_features
         
 	def num_binary_features(self):
-		return len(util.binary_features)
+		return len(self.which_features)
 
 	def num_continuous_features(self):
 		return len(util.continuous_features)
@@ -59,13 +63,20 @@ class AddisAbaba(Dataset):
 			elif os.path.exists(batch_source+str(i)+".npy"+filetail):
 				x_batch.append(np.load(batch_source+str(i)+".npy"+filetail))
 			else:
-				x_batch.append(np.random.rand(500, 500, 5))
+				x_batch.append(np.random.rand(224, 224, 5))
 				# print batch_source+str(i)+".npy"+filetail
 				# raise Exception("Sattelite image %d not found!" % i)
 		return np.array(x_batch)
 
 	def get_y_batch(self, iteration):
-		return self.y_binary[self.batch_size * iteration : self.batch_size*(iteration+1)], self.y_continuous[self.batch_size * iteration : self.batch_size * (iteration+1)]
+
+		from_index = self.batch_size * iteration
+		to_index = self.batch_size*(iteration+1)
+
+		binary_batch = self.y_binary[from_index : to_index, self.which_features]
+		continuous_batch = self.y_continuous[from_index : to_index]
+
+		return binary_batch, continuous_batch
 
 	def get_x_test_batch(self, iteration):
 		x_batch = []
