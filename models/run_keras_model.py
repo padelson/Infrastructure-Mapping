@@ -4,6 +4,7 @@ sys.path.append("..")
 from utils import addis as util
 import numpy as np
 from addis_ababa_dataset import AddisAbaba
+from afrobarometer_dataset import Afrobarometer
 from datasets import *
 import os
 import csv
@@ -138,8 +139,8 @@ if __name__ == "__main__":
 	input_shape = (224, 224, 3)
 	learning_rate = 0.00001
 
-	file_name = "../Addis_data_processed.csv"
-	data = AddisAbaba(file_name, batch_size)
+	file_name = "../Afrobarometer_R6.csv"
+	data = Afrobarometer(file_name, batch_size)
 
 	train_on_binary(data, "test_final_last.csv")
 
@@ -149,8 +150,8 @@ if __name__ == "__main__":
 	input_shape = (224, 224, 3)
 	learning_rate = 0.0001
 
-	file_name = "../Addis_data_processed.csv"
-	data = AddisAbaba(file_name, batch_size)
+	file_name = "../Afrobarometer_R6.csv"
+	data = Afrobarometer(file_name, batch_size)
 
 	train_on_binary(data, "test2.csv")
 
@@ -160,14 +161,7 @@ if __name__ == "__main__":
 	input_shape = (224, 224, 3)
 	learning_rate = 0.0005
 
-	file_name = "../Addis_data_processed.csv"
-	data = AddisAbaba(file_name, batch_size)
+	file_name = "../Afrobarometer_R6.csv"
+	data = Afrobarometer(file_name, batch_size)
 
 	train_on_binary(data, "test3.csv")
-
-
-
-
-
-
-
