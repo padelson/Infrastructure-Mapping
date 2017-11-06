@@ -7,17 +7,12 @@ from addis_ababa_dataset import AddisAbaba
 from datasets import *
 import os
 import csv
-
 from sklearn.metrics import f1_score
 from scipy.cluster.vq import whiten
-
 from sklearn.preprocessing import scale
-
 import numpy as np
 import keras
-
 import keras.backend as K
-
 from keras import optimizers
 from keras.preprocessing import image
 from keras.models import Model, Sequential
@@ -25,11 +20,9 @@ from keras.layers import Conv2D, Dense, Dropout, Flatten
 from keras.layers.normalization import BatchNormalization
 from keras.preprocessing.image import ImageDataGenerator
 from keras.applications.resnet50 import ResNet50, preprocess_input
+from keras.applications.vgg16 import VGG16
 
-#### TO DO
-# Test accuracy
-# Print out
-###########
+file_name = "../Addis_data_processed.csv"
 
 def all_acc(y_true, y_pred):
 	equals = np.equal(y_true, np.round(y_pred)).astype(float)
@@ -48,9 +41,15 @@ def all_f1(y_true, y_pred):
 	return np.array(scores)
 
 def preprocess(x):
-	x = np.resize(x, (x.shape[0], 224, 224, 5))
+	# x = np.resize(x, (x.shape[0], 224, 224, 5))
 
-	return x[:, :, :, :3]
+	a = x[:, :, :, 2:5]
+	#b = (a - np.mean(a)) / 256
+
+	a = a - a.mean(axis=0)
+	a = a / np.sqrt((a ** 2).sum(axis=1))[:,None]
+
+	return a*10
 
 class DataGenerator():
 
@@ -90,20 +89,24 @@ class MetricsCallback(keras.callbacks.Callback):
 		self.data = data
 		self.accuracies = []
 		self.f1_scores = []
+		self.losses = []
+		self.preds = []
 
 	def on_epoch_end(self, epoch, logs=None):
 		data_generator = DataGenerator(self.data, continuous=False)
-		y_preds = self.model.predict_generator(data_generator.train_generate(), self.data.num_train_batches())
-		y_true = self.data.y_binary[:y_preds.shape[0]]
+		y_preds = self.model.predict_generator(DataGenerator(data, continuous = False).train_generate(), self.data.num_train_batches())
+		y_true = self.data.y_binary[:y_preds.shape[0], self.data.which_features]
 
 		self.accuracies.append(all_acc(y_true, y_preds))
 		self.f1_scores.append(all_f1(y_true, y_preds))
+		self.losses.append(logs['loss'])
+		self.preds.append(y_preds)
 
 		# print ("Accuracy mean: %f, F1 score mean: %f" % (np.mean(accuracies), np.mean(f1_scores)))
 
-def train_on_binary(data, output_filename):
-	model = ResNet50(include_top=False, weights='imagenet',
-	                 pooling='max', input_shape=input_shape)
+def train_on_binary(data, output_filename='test.csv', epochs = 3):
+	model = VGG16(include_top=False, weights='imagenet',
+	                 pooling='max', input_shape=(224, 224, 3))
 
 	binary_pred = Dense(data.num_binary_features(), activation='sigmoid', name = 'binary')(model.layers[-1].output)
 	model = Model(input=model.input, output=binary_pred)
@@ -112,52 +115,45 @@ def train_on_binary(data, output_filename):
 
 	metrics = MetricsCallback(model, data)
 	model.fit_generator(DataGenerator(data, continuous = False).train_generate(), data.num_train_batches(), callbacks = [metrics], epochs = epochs)
-	# score = model.evaluate_generator(DataGenerator(data, continuous = False).eval_generate(), data.num_test_batches())
+	#score = model.evaluate_generator(DataGenerator(data, continuous = False).eval_generate(), data.num_test_batches())
 	
 	myfile = open(output_filename, 'w')
+
 	with myfile:
 		writer = csv.writer(myfile)
+		writer.writerow(map (lambda x: util.binary_features[x], data.which_features))
+		# writer.writerow(['losses'])
+		# writer.writerows(metrics.losses)
 		writer.writerow(['accuracies'])
 		writer.writerows(metrics.accuracies)
 		writer.writerow(['f1_scores'])
 		writer.writerows(metrics.f1_scores)
-		# writer.writerow(['score'])
-		# writer.writerows([score])
+		writer.writerow(['predictions'])
+
+		writer.writerow([data.num_binary_features() * ""] + ["Epoch %d" % i if i % (data.num_binary_features()) == 0 else '' for i in range(epochs * (data.num_binary_features()))])
+
+		predictions = np.array(metrics.preds)
+		predictions_formatted = np.hstack(tuple(predictions))
+
+		y_true = data.y_binary[:data.num_train, data.which_features]
+
+		predictions_formatted = np.hstack((y_true, predictions_formatted))
+
+		writer.writerow(map(lambda x: util.binary_features[x], data.which_features) * epochs)
+		for i in range(predictions_formatted.shape[0]):
+			writer.writerow(predictions_formatted[i].tolist())
+
 
 if __name__ == "__main__":
-	batch_size = 32
-	epochs = 5
-	input_shape = (224, 224, 3)
-	learning_rate = 0.00001
-
-	file_name = "../Addis_data_processed.csv"
-	data = AddisAbaba(file_name, batch_size)
-
-	train_on_binary(data, "test1.csv")
-
-
-	batch_size = 32
-	epochs = 5
-	input_shape = (224, 224, 3)
+	batch_size = 2
 	learning_rate = 0.0001
+	num_examples = 20
+	epochs = 2
+	which_features = [52]
 
-	file_name = "../Addis_data_processed.csv"
-	data = AddisAbaba(file_name, batch_size)
+	data = AddisAbaba(file_name, batch_size, num_examples, which_features)
 
-	train_on_binary(data, "test2.csv")
-
-
-	batch_size = 32
-	epochs = 4
-	input_shape = (224, 224, 3)
-	learning_rate = 0.0005
-
-	file_name = "../Addis_data_processed.csv"
-	data = AddisAbaba(file_name, batch_size)
-
-	train_on_binary(data, "test3.csv")
-
-
+	train_on_binary(data, "test.csv", epochs = epochs)
 
 
 
