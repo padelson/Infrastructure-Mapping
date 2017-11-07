@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import time
 import os
 import pandas as pd
+from sklearn.metrics import f1_score
 
 filetail = ".0.npy"
 
@@ -32,12 +33,15 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 scheduler.step()
                 model.train(True)  # Set model to training mode
                 dataloders = dataloaders_train
+                current_dataset = dataset_train
             else:
                 model.train(False)  # Set model to evaluate mode
                 dataloders = dataloaders_test
+                current_dataset = dataset_test
 
             running_loss = 0.0
             running_corrects = 0.0
+            running_tp = 0.0
 
             # Iterate over data.
             for data in dataloders:
@@ -70,6 +74,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 # statistics
                 running_loss += loss.data[0]
                 running_corrects += torch.sum(preds == labels.data)
+                # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
+
+                print (preds == labels.data)
+
 
             epoch_loss = running_loss / dataset_size
             epoch_acc = running_corrects / dataset_size
@@ -114,7 +122,7 @@ class AddisDataset(Dataset):
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, 's1_median_addis_multiband_224x224_%d.npy' % (self.from_index+idx))
         image = np.load(img_name)[:, :, :3]
-        labels = self.data[idx]
+        labels = self.data[self.from_index+idx]
         if self.transform:
             image = self.transform(image)
 
@@ -129,11 +137,11 @@ data_transforms = transforms.Compose([
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-num_examples = 300
+num_examples = 100
 train_test_split = 0.9
 split_point = int(num_examples*train_test_split)
 
-data_dir = '/home/barakoshri/infrastructure-mapping/addis_center_cropped' # TODO: separate into train / val set
+data_dir = '/home/barakoshri/infrastructure-mapping/addis_s1_center_cropped'
 dataset_train = AddisDataset(0, split_point, csv_file='../Addis_data_processed.csv',
                                     root_dir=data_dir,
                                     column='pit_latrine_depth_val2_when_bl_dw39_val1',

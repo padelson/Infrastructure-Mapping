@@ -14,7 +14,7 @@ batch_source = pathname + filename_dict[data_source + '_' + sat]
 # New files
 folder_name = "center_cropped"
 resolution = "224"
-new_pathname = "/mnt/mounted_bucket/%s_%s_%s" % (data_source, sat, folder_name)
+new_pathname = "/home/barakoshri/infrastructure-mapping/%s_%s_%s" % (data_source, sat, folder_name)
 new_batch_source = "%s/%s_median_%s_multiband_%sx%s_" % (new_pathname, sat, data_source, resolution, resolution)
 new_filetail = ".npy"
 
@@ -27,7 +27,7 @@ def crop(arr):
 	offset_from = (500-224)/2
 	offset_to = 500 - offset_from
 
-	return arr[offset_from:offset_to, offset_from:offset_to, :]
+	return arr[offset_from:offset_to, offset_from:offset_to, 0:3]
 
 func = crop
 
