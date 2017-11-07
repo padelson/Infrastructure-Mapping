@@ -15,10 +15,12 @@ import os
 import pandas as pd
 from sklearn.metrics import f1_score
 
-filetail = ".0.npy"
 continuous = False
 lr = 1e-4 # was 0.01 for binary
 momentum = 0.9 # was 0.4 for binary
+last_many_f1 = 5
+batch_size = 64
+num_workers = 4
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -79,7 +81,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 running_loss += loss.data[0]
                 if not continuous:
                     running_corrects += torch.sum(preds == labels.data)
-                    if not continuous and epoch >= num_epochs - 3: 
+                    if not continuous and epoch >= num_epochs - last_many_f1: 
                         running_preds = np.hstack((running_preds, preds.cpu().numpy()))
                 # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
 
@@ -88,7 +90,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             epoch_loss = running_loss / dataset_size
             epoch_acc = running_corrects / dataset_size
-            if not continuous and epoch >= num_epochs - 3:
+            if not continuous and epoch >= num_epochs - last_many_f1:
                 epoch_f1 = f1_score(current_dataset.data, running_preds)
 
                 print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
@@ -123,18 +125,24 @@ class AddisDataset(Dataset):
                 on a sample.
         """
         assert (to_index < 3591 and from_index >= 0)
-        self.data = pd.read_csv(csv_file)[column][from_index:to_index] # TODO: lol indexing is jank rn will change
+        self.data = pd.read_csv(csv_file)[column][from_index:to_index].values # TODO: lol indexing is jank rn will change
+        self.shuffled_indices = np.array(range(to_index - from_index))
+        np.random.shuffle(self.shuffled_indices)
+        self.data = self.data[self.shuffled_indices]
         self.root_dir = root_dir
         self.transform = transform
         self.from_index = from_index
+
+        if not continuous:
+            self.balance = float(np.sum(self.data)) / float(len(self.data))
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, 's1_median_addis_multiband_224x224_%d.npy' % (self.from_index+idx))
+        img_name = os.path.join(self.root_dir, 's1_median_addis_multiband_224x224_%d.npy' % (self.from_index+self.shuffled_indices[idx]))
         image = np.load(img_name)[:, :, :3]
-        labels = self.data[self.from_index+idx]
+        labels = self.data[self.shuffled_indices[idx]]
         if self.transform:
             image = self.transform(image)
 
@@ -163,8 +171,8 @@ dataset_test = AddisDataset(split_point, num_examples, csv_file='../Addis_data_p
                                     column='pit_latrine_depth_val2_when_bl_dw39_val1',
                                     transform=data_transforms)
 
-dataloaders_train = DataLoader(dataset_train, batch_size=64, shuffle=True, num_workers=4)
-dataloaders_test = DataLoader(dataset_test, batch_size=64, shuffle=False, num_workers=4)
+dataloaders_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+dataloaders_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 dataset_size = len(dataset_train)
 
 use_gpu = torch.cuda.is_available()
@@ -182,7 +190,8 @@ else:
 if use_gpu:
     model_ft = model_ft.cuda()
 
-criterion = nn.CrossEntropyLoss()
+if not continuous:
+    criterion = nn.CrossEntropyLoss(weight=torch.cuda.FloatTensor([dataset_train.balance, 1-dataset_train.balance]))
 if continuous:
     criterion = nn.MSELoss(size_average=True)
 
