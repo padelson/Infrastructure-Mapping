@@ -1,5 +1,6 @@
 # from __future__ import print_function, division
-
+import sys
+sys.path.append("..")
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,9 +14,16 @@ import matplotlib.pyplot as plt
 import time
 import os
 import pandas as pd
+from utils import addis as util
 from sklearn.metrics import f1_score
 
+satellite = 'l8'
+filetail = ".0.npy"
+continuous = False 
+lr = 1e-4
+momentum = 0.9
 len_dataset = 3591
+
 data_dir = '../addis_s1_center_cropped'
 column = 'pit_latrine_depth_val2_when_bl_dw39_val1'
 
@@ -31,10 +39,10 @@ num_epochs = 20
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
-
+    # all_results = open(satellite + '_results.csv', 'w')
     best_model_wts = model.state_dict()
     best_acc = 0.0
-
+    best_train_acc = 0.0
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -98,15 +106,17 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             epoch_acc = running_corrects / len(current_dataset)
             if not continuous and epoch >= num_epochs - last_many_f1:
                 epoch_f1 = f1_score(current_dataset.data, running_preds)
-
-                print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
+		print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc, epoch_f1))
             else:
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
+	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
 
+            if phase == 'train' and epoch_f1 > best_train_acc:
+                best_train_acc = epoch_acc
             # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
+            if phase == 'val' and epoch_f1 > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = model.state_dict()
 
@@ -117,7 +127,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model
+    return model, best_train_acc, best_acc
 
 class AddisDataset(Dataset):
     """Addis dataset."""
@@ -142,7 +152,7 @@ class AddisDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, 's1_median_addis_multiband_224x224_%d.npy' % (self.indices[idx]))
+        img_name = os.path.join(self.root_dir, satellite + '_median_addis_multiband_224x224_%d.npy' % (self.indices[idx]))
         image = np.load(img_name)[:, :, :3]
         labels = self.data[idx]
         if self.transform:
