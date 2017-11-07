@@ -61,8 +61,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 # forward
                 outputs = model(inputs)
-                # print "Runtime outputs: ", outputs
-                # print "Runtime labels: ", labels
                 _, preds = torch.max(outputs.data, 1)
                 loss = criterion(outputs, labels)
 
@@ -74,9 +72,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 # statistics
                 running_loss += loss.data[0]
                 running_corrects += torch.sum(preds == labels.data)
-                # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
+                running_tp += torch.sum(torch.eq((preds == labels.data), labels.data.type(torch.cuda.ByteTensor)))
 
-                print (preds == labels.data)
+                print "(preds == labels)", torch.eq((preds == labels.data), labels.data.type(torch.cuda.ByteTensor))
+                print "preds", preds
+                print "labels", labels
 
 
             epoch_loss = running_loss / dataset_size
