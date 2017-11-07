@@ -16,6 +16,9 @@ import pandas as pd
 from sklearn.metrics import f1_score
 
 filetail = ".0.npy"
+continuous = True
+lr = 1e-4 # was 0.01 for binary
+momentum = 0.9 # was 0.4 for binary
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -47,7 +50,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             for data in dataloders:
                 # get the inputs
                 inputs = data['image']
-                labels = data['labels'].type(torch.LongTensor)
+                labels = data['labels'].type(torch.FloatTensor)
 
                 # wrap them in Variable
                 if use_gpu:
@@ -71,13 +74,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 # statistics
                 running_loss += loss.data[0]
-                running_corrects += torch.sum(preds == labels.data)
-                running_tp += torch.sum(torch.eq((preds == labels.data), labels.data.type(torch.cuda.ByteTensor)))
+                if not continuous:
+                    running_corrects += torch.sum(preds == labels.data)
+                # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
 
-                print "(preds == labels)", torch.eq((preds == labels.data), labels.data.type(torch.cuda.ByteTensor))
-                print "preds", preds
-                print "labels", labels
-
+                # print (preds == labels.data)
 
             epoch_loss = running_loss / dataset_size
             epoch_acc = running_corrects / dataset_size
@@ -141,14 +142,14 @@ num_examples = 100
 train_test_split = 0.9
 split_point = int(num_examples*train_test_split)
 
-data_dir = '/home/barakoshri/infrastructure-mapping/addis_s1_center_cropped'
+data_dir = '../addis_s1_center_cropped'
 dataset_train = AddisDataset(0, split_point, csv_file='../Addis_data_processed.csv',
                                     root_dir=data_dir,
-                                    column='pit_latrine_depth_val2_when_bl_dw39_val1',
+                                    column='distance_piazza',
                                     transform=data_transforms)
 dataset_test = AddisDataset(split_point, num_examples, csv_file='../Addis_data_processed.csv',
                                     root_dir=data_dir,
-                                    column='pit_latrine_depth_val2_when_bl_dw39_val1',
+                                    column='distance_piazza',
                                     transform=data_transforms)
 
 dataloaders_train = DataLoader(dataset_train, batch_size=10, shuffle=True, num_workers=4)
@@ -159,18 +160,20 @@ use_gpu = torch.cuda.is_available()
 
 ######## Train Model
 
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+# torch.set_default_tensor_type('torch.cuda.FloatTensor')
 model_ft = models.resnet18(pretrained=True)
 num_ftrs = model_ft.fc.in_features
-model_ft.fc = nn.Linear(num_ftrs, 2)
+model_ft.fc = nn.Linear(num_ftrs, 1)
 
 if use_gpu:
     model_ft = model_ft.cuda()
 
 criterion = nn.CrossEntropyLoss()
+if continuous:
+    criterion = nn.MSELoss(size_average=True)
 
 # Observe that all parameters are being optimized
-optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.01, momentum=0.4)
+optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
 
 # Decay LR by a factor of 0.1 every 7 epochs
 exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
