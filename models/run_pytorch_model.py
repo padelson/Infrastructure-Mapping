@@ -1,5 +1,6 @@
 # from __future__ import print_function, division
-
+import sys
+sys.path.append("..")
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,16 +14,18 @@ import matplotlib.pyplot as plt
 import time
 import os
 import pandas as pd
+from utils import addis as util
 from sklearn.metrics import f1_score
 
+satellite = 'l8'
 filetail = ".0.npy"
-continuous = True
-lr = 1e-4 # was 0.01 for binary
-momentum = 0.9 # was 0.4 for binary
+continuous = False 
+lr = 1e-3
+momentum = 0.9
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
-
+    # all_results = open(satellite + '_results.csv', 'w')
     best_model_wts = model.state_dict()
     best_acc = 0.0
 
@@ -50,7 +53,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             for data in dataloders:
                 # get the inputs
                 inputs = data['image']
-                labels = data['labels'].type(torch.FloatTensor)
+                labels = data['labels'].type(torch.LongTensor)
+		if continuous:
+			labels = labels.type(torch.FloatTensor)
 
                 # wrap them in Variable
                 if use_gpu:
@@ -87,7 +92,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                 phase, epoch_loss, epoch_acc))
-
+	    # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
@@ -100,7 +105,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model
+    return model, best_acc
 
 class AddisDataset(Dataset):
     """Addis dataset."""
@@ -123,7 +128,7 @@ class AddisDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, 's1_median_addis_multiband_224x224_%d.npy' % (self.from_index+idx))
+        img_name = os.path.join(self.root_dir, satellite + '_median_addis_multiband_224x224_%d.npy' % (self.from_index+idx))
         image = np.load(img_name)[:, :, :3]
         labels = self.data[self.from_index+idx]
         if self.transform:
@@ -140,61 +145,52 @@ data_transforms = transforms.Compose([
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-num_examples = 100
+num_examples = 1000
 train_test_split = 0.9
 split_point = int(num_examples*train_test_split)
 
-data_dir = '../addis_s1_center_cropped'
-dataset_train = AddisDataset(0, split_point, csv_file='../Addis_data_processed.csv',
-                                    root_dir=data_dir,
-                                    column='distance_piazza',
-                                    transform=data_transforms)
-dataset_test = AddisDataset(split_point, num_examples, csv_file='../Addis_data_processed.csv',
-                                    root_dir=data_dir,
-                                    column='distance_piazza',
-                                    transform=data_transforms)
+data_dir = '../addis_' + satellite + '_center_cropped'
+# all_results = open(satellite + '_results_binary.csv', 'w')
+for col in util.binary_features:
+	dataset_train = AddisDataset(0, split_point, csv_file='../Addis_data_processed.csv',
+					    root_dir=data_dir,
+					    column=col,
+					    transform=data_transforms)
+	dataset_test = AddisDataset(split_point, num_examples, csv_file='../Addis_data_processed.csv',
+					    root_dir=data_dir,
+					    column=col,
+					    transform=data_transforms)
 
-dataloaders_train = DataLoader(dataset_train, batch_size=10, shuffle=True, num_workers=4)
-dataloaders_test = DataLoader(dataset_test, batch_size=10, shuffle=False, num_workers=4)
-dataset_size = len(dataset_train)
+	dataloaders_train = DataLoader(dataset_train, batch_size=20, shuffle=True, num_workers=4)
+	dataloaders_test = DataLoader(dataset_test, batch_size=20, shuffle=False, num_workers=4)
+	dataset_size = len(dataset_train)
 
-use_gpu = torch.cuda.is_available()
+	use_gpu = torch.cuda.is_available()
 
-######## Train Model
+	######## Train Model
 
-# torch.set_default_tensor_type('torch.cuda.FloatTensor')
-model_ft = models.resnet18(pretrained=True)
-num_ftrs = model_ft.fc.in_features
-model_ft.fc = nn.Linear(num_ftrs, 1)
+	torch.set_default_tensor_type('torch.cuda.FloatTensor')
+	model_ft = models.resnet18(pretrained=True)
+	# uncomment for fixed model
+	# for param in model_ft.parameters():
+    	#	param.requires_grad = False
+	num_ftrs = model_ft.fc.in_features
+	model_ft.fc = nn.Linear(num_ftrs, 2)
 
-if use_gpu:
-    model_ft = model_ft.cuda()
+	if use_gpu:
+	    model_ft = model_ft.cuda()
 
-criterion = nn.CrossEntropyLoss()
-if continuous:
-    criterion = nn.MSELoss(size_average=True)
+	criterion = nn.CrossEntropyLoss()
+	if continuous:
+	    criterion = nn.MSELoss(size_average=True)
 
-# Observe that all parameters are being optimized
-optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
+	# Observe that all parameters are being optimized
+	optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
 
-# Decay LR by a factor of 0.1 every 7 epochs
-exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+	# Decay LR by a factor of 0.1 every 7 epochs
+	exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
-model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
-                       num_epochs=20)
+	model_ft, acc = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
+			       num_epochs=10)
+	# all_results.write(col + ',' + str(acc) + '\n')
 
-# for data in dataloders:
-#     # get the inputs
-#     inputs = data['image']
-#     labels = data['labels'].type(torch.LongTensor)
-
-#     # wrap them in Variable
-#     if use_gpu:
-#         inputs = Variable(inputs.cuda())
-#         labels = Variable(labels.cuda())
-#     else:
-#         inputs, labels = Variable(inputs), Variable(labels)
-
-#     # forward
-#     outputs = model_ft(inputs)
-#     _, preds = torch.max(outputs.data, 1)
