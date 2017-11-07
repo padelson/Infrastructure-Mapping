@@ -20,7 +20,7 @@ from sklearn.metrics import f1_score
 satellite = 'l8'
 filetail = ".0.npy"
 continuous = False 
-lr = 1e-3
+lr = 1e-4
 momentum = 0.9
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
@@ -47,15 +47,16 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             running_loss = 0.0
             running_corrects = 0.0
-            running_tp = 0.0
+            running_preds = np.array([])
 
             # Iterate over data.
             for data in dataloders:
                 # get the inputs
                 inputs = data['image']
-                labels = data['labels'].type(torch.LongTensor)
-		if continuous:
-			labels = labels.type(torch.FloatTensor)
+                if continuous: 
+                    labels = data['labels'].type(torch.FloatTensor)
+                else:
+                    labels = data['labels'].type(torch.LongTensor)
 
                 # wrap them in Variable
                 if use_gpu:
@@ -69,8 +70,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 # forward
                 outputs = model(inputs)
-                # print "Runtime outputs: ", outputs
-                # print "Runtime labels: ", labels
                 _, preds = torch.max(outputs.data, 1)
                 loss = criterion(outputs, labels)
 
@@ -83,16 +82,24 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 running_loss += loss.data[0]
                 if not continuous:
                     running_corrects += torch.sum(preds == labels.data)
+                    if not continuous and epoch >= num_epochs - 3: 
+                        running_preds = np.hstack((running_preds, preds.cpu().numpy()))
                 # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
+
 
                 # print (preds == labels.data)
 
             epoch_loss = running_loss / dataset_size
             epoch_acc = running_corrects / dataset_size
+            if not continuous and epoch >= num_epochs - 3:
+                epoch_f1 = f1_score(current_dataset.data, running_preds)
+                print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
+                    phase, epoch_loss, epoch_acc, epoch_f1))
+            else:
+                print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                    phase, epoch_loss, epoch_acc))
+	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                phase, epoch_loss, epoch_acc))
-	    # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
@@ -119,7 +126,7 @@ class AddisDataset(Dataset):
                 on a sample.
         """
         assert (to_index < 3591 and from_index >= 0)
-        self.data = pd.read_csv(csv_file)[column][from_index:to_index] # TODO: lol indexing is jank rn will change
+        self.data = pd.read_csv(csv_file)[column][from_index:to_index] 
         self.root_dir = root_dir
         self.transform = transform
         self.from_index = from_index
@@ -161,21 +168,23 @@ for col in util.binary_features:
 					    column=col,
 					    transform=data_transforms)
 
-	dataloaders_train = DataLoader(dataset_train, batch_size=20, shuffle=True, num_workers=4)
-	dataloaders_test = DataLoader(dataset_test, batch_size=20, shuffle=False, num_workers=4)
+	dataloaders_train = DataLoader(dataset_train, batch_size=64, shuffle=True, num_workers=4)
+	dataloaders_test = DataLoader(dataset_test, batch_size=64, shuffle=False, num_workers=4)
 	dataset_size = len(dataset_train)
 
 	use_gpu = torch.cuda.is_available()
 
 	######## Train Model
-
 	torch.set_default_tensor_type('torch.cuda.FloatTensor')
 	model_ft = models.resnet18(pretrained=True)
 	# uncomment for fixed model
 	# for param in model_ft.parameters():
     	#	param.requires_grad = False
 	num_ftrs = model_ft.fc.in_features
-	model_ft.fc = nn.Linear(num_ftrs, 2)
+	if continuous:
+	    model_ft.fc = nn.Linear(num_ftrs, 1)
+	else:
+	    model_ft.fc = nn.Linear(num_ftrs, 2)
 
 	if use_gpu:
 	    model_ft = model_ft.cuda()
