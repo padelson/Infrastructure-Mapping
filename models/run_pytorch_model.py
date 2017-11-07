@@ -22,6 +22,9 @@ filetail = ".0.npy"
 continuous = False 
 lr = 1e-4
 momentum = 0.9
+len_dataset = 3591
+num_examples = 1000
+train_test_split = 0.9
 last_many_f1 = 5
 batch_size = 64
 num_workers = 4
@@ -121,7 +124,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
 class AddisDataset(Dataset):
     """Addis dataset."""
-    def __init__(self, from_index, to_index, csv_file, root_dir, column, transform=None):
+    def __init__(self, indices, csv_file, root_dir, column, transform=None):
         """
         Args:
             csv_file (string): Path to the csv file.
@@ -130,14 +133,10 @@ class AddisDataset(Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        assert (to_index < 3591 and from_index >= 0)
-        self.data = pd.read_csv(csv_file)[column][from_index:to_index].values
-        self.shuffled_indices = np.array(range(to_index - from_index))
-        np.random.shuffle(self.shuffled_indices)
-        self.data = self.data[self.shuffled_indices]
+        self.data = pd.read_csv(csv_file)[column][indices].values # TODO: lol indexing is jank rn will change
         self.root_dir = root_dir
         self.transform = transform
-        self.from_index = from_index
+        self.indices = indices
 
         if not continuous:
             self.balance = float(np.sum(self.data)) / float(len(self.data))
@@ -146,9 +145,9 @@ class AddisDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, satellite + '_median_addis_multiband_224x224_%d.npy' % (self.from_index+self.shuffled_indices[idx]))
+        img_name = os.path.join(self.root_dir, satellite + '_median_addis_multiband_224x224_%d.npy' % (self.indices[idx]))
         image = np.load(img_name)[:, :, :3]
-        labels = self.data[self.shuffled_indices[idx]]
+        labels = self.data[idx]
         if self.transform:
             image = self.transform(image)
 
@@ -163,18 +162,20 @@ data_transforms = transforms.Compose([
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-num_examples = 1000
-train_test_split = 0.9
+indices = np.arange(len_dataset)
+np.random.shuffle(indices)
 split_point = int(num_examples*train_test_split)
+train_indices = indices[:split_point]
+test_indices = indices[split_point:num_examples]
 
 data_dir = '../addis_' + satellite + '_center_cropped'
 all_results = open(satellite + '_results_binary.csv', 'w')
 for col in util.binary_features:
-	dataset_train = AddisDataset(0, split_point, csv_file='../Addis_data_processed.csv',
+	dataset_train = AddisDataset(train_indices, csv_file='../Addis_data_processed.csv',
 					    root_dir=data_dir,
 					    column=col,
 					    transform=data_transforms)
-	dataset_test = AddisDataset(split_point, num_examples, csv_file='../Addis_data_processed.csv',
+	dataset_test = AddisDataset(test_indices, csv_file='../Addis_data_processed.csv',
 					    root_dir=data_dir,
 					    column=col,
 					    transform=data_transforms)
