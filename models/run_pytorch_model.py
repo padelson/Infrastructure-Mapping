@@ -22,13 +22,16 @@ filetail = ".0.npy"
 continuous = False 
 lr = 1e-4
 momentum = 0.9
+last_many_f1 = 5
+batch_size = 64
+num_workers = 4
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
     # all_results = open(satellite + '_results.csv', 'w')
     best_model_wts = model.state_dict()
     best_acc = 0.0
-
+    best_train_acc = 0.0
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -82,7 +85,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 running_loss += loss.data[0]
                 if not continuous:
                     running_corrects += torch.sum(preds == labels.data)
-                    if not continuous and epoch >= num_epochs - 3: 
+                    if not continuous and epoch >= num_epochs - last_many_f1: 
                         running_preds = np.hstack((running_preds, preds.cpu().numpy()))
                 # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
 
@@ -91,17 +94,19 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             epoch_loss = running_loss / dataset_size
             epoch_acc = running_corrects / dataset_size
-            if not continuous and epoch >= num_epochs - 3:
+            if not continuous and epoch >= num_epochs - last_many_f1:
                 epoch_f1 = f1_score(current_dataset.data, running_preds)
-                print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
+		print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc, epoch_f1))
             else:
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
 	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
 
+            if phase == 'train' and epoch_f1 > best_train_acc:
+                best_train_acc = epoch_acc
             # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
+            if phase == 'val' and epoch_f1 > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = model.state_dict()
 
@@ -112,7 +117,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model, best_acc
+    return model, best_train_acc, best_acc
 
 class AddisDataset(Dataset):
     """Addis dataset."""
@@ -126,18 +131,24 @@ class AddisDataset(Dataset):
                 on a sample.
         """
         assert (to_index < 3591 and from_index >= 0)
-        self.data = pd.read_csv(csv_file)[column][from_index:to_index] 
+        self.data = pd.read_csv(csv_file)[column][from_index:to_index].values
+        self.shuffled_indices = np.array(range(to_index - from_index))
+        np.random.shuffle(self.shuffled_indices)
+        self.data = self.data[self.shuffled_indices]
         self.root_dir = root_dir
         self.transform = transform
         self.from_index = from_index
+
+        if not continuous:
+            self.balance = float(np.sum(self.data)) / float(len(self.data))
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, satellite + '_median_addis_multiband_224x224_%d.npy' % (self.from_index+idx))
+        img_name = os.path.join(self.root_dir, satellite + '_median_addis_multiband_224x224_%d.npy' % (self.from_index+self.shuffled_indices[idx]))
         image = np.load(img_name)[:, :, :3]
-        labels = self.data[self.from_index+idx]
+        labels = self.data[self.shuffled_indices[idx]]
         if self.transform:
             image = self.transform(image)
 
@@ -157,7 +168,7 @@ train_test_split = 0.9
 split_point = int(num_examples*train_test_split)
 
 data_dir = '../addis_' + satellite + '_center_cropped'
-# all_results = open(satellite + '_results_binary.csv', 'w')
+all_results = open(satellite + '_results_binary.csv', 'w')
 for col in util.binary_features:
 	dataset_train = AddisDataset(0, split_point, csv_file='../Addis_data_processed.csv',
 					    root_dir=data_dir,
@@ -168,8 +179,8 @@ for col in util.binary_features:
 					    column=col,
 					    transform=data_transforms)
 
-	dataloaders_train = DataLoader(dataset_train, batch_size=64, shuffle=True, num_workers=4)
-	dataloaders_test = DataLoader(dataset_test, batch_size=64, shuffle=False, num_workers=4)
+	dataloaders_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+	dataloaders_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 	dataset_size = len(dataset_train)
 
 	use_gpu = torch.cuda.is_available()
@@ -189,7 +200,8 @@ for col in util.binary_features:
 	if use_gpu:
 	    model_ft = model_ft.cuda()
 
-	criterion = nn.CrossEntropyLoss()
+	if not continuous:
+	    criterion = nn.CrossEntropyLoss(weight=torch.cuda.FloatTensor([dataset_train.balance, 1-dataset_train.balance]))
 	if continuous:
 	    criterion = nn.MSELoss(size_average=True)
 
@@ -199,7 +211,6 @@ for col in util.binary_features:
 	# Decay LR by a factor of 0.1 every 7 epochs
 	exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
-	model_ft, acc = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
-			       num_epochs=10)
-	# all_results.write(col + ',' + str(acc) + '\n')
-
+	model_ft, train, val = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
+			       num_epochs=20)
+	all_results.write(col + ',' + str(train) + ',' + str(val) + '\n')
