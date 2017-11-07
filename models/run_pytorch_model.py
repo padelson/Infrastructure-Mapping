@@ -16,7 +16,7 @@ import pandas as pd
 from sklearn.metrics import f1_score
 
 filetail = ".0.npy"
-continuous = True
+continuous = False
 lr = 1e-4 # was 0.01 for binary
 momentum = 0.9 # was 0.4 for binary
 
@@ -44,13 +44,16 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             running_loss = 0.0
             running_corrects = 0.0
-            running_tp = 0.0
+            running_preds = np.array([])
 
             # Iterate over data.
             for data in dataloders:
                 # get the inputs
                 inputs = data['image']
-                labels = data['labels'].type(torch.FloatTensor)
+                if continuous: 
+                    labels = data['labels'].type(torch.FloatTensor)
+                else:
+                    labels = data['labels'].type(torch.LongTensor)
 
                 # wrap them in Variable
                 if use_gpu:
@@ -76,15 +79,23 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 running_loss += loss.data[0]
                 if not continuous:
                     running_corrects += torch.sum(preds == labels.data)
+                    if not continuous and epoch >= num_epochs - 3: 
+                        running_preds = np.hstack((running_preds, preds.cpu().numpy()))
                 # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
+
 
                 # print (preds == labels.data)
 
             epoch_loss = running_loss / dataset_size
             epoch_acc = running_corrects / dataset_size
+            if not continuous and epoch >= num_epochs - 3:
+                epoch_f1 = f1_score(current_dataset.data, running_preds)
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                phase, epoch_loss, epoch_acc))
+                print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
+                    phase, epoch_loss, epoch_acc, epoch_f1))
+            else:
+                print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                    phase, epoch_loss, epoch_acc))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -138,22 +149,22 @@ data_transforms = transforms.Compose([
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-num_examples = 100
+num_examples = 1000
 train_test_split = 0.9
 split_point = int(num_examples*train_test_split)
 
 data_dir = '../addis_s1_center_cropped'
 dataset_train = AddisDataset(0, split_point, csv_file='../Addis_data_processed.csv',
                                     root_dir=data_dir,
-                                    column='distance_piazza',
+                                    column='pit_latrine_depth_val2_when_bl_dw39_val1',
                                     transform=data_transforms)
 dataset_test = AddisDataset(split_point, num_examples, csv_file='../Addis_data_processed.csv',
                                     root_dir=data_dir,
-                                    column='distance_piazza',
+                                    column='pit_latrine_depth_val2_when_bl_dw39_val1',
                                     transform=data_transforms)
 
-dataloaders_train = DataLoader(dataset_train, batch_size=10, shuffle=True, num_workers=4)
-dataloaders_test = DataLoader(dataset_test, batch_size=10, shuffle=False, num_workers=4)
+dataloaders_train = DataLoader(dataset_train, batch_size=64, shuffle=True, num_workers=4)
+dataloaders_test = DataLoader(dataset_test, batch_size=64, shuffle=False, num_workers=4)
 dataset_size = len(dataset_train)
 
 use_gpu = torch.cuda.is_available()
@@ -163,7 +174,10 @@ use_gpu = torch.cuda.is_available()
 # torch.set_default_tensor_type('torch.cuda.FloatTensor')
 model_ft = models.resnet18(pretrained=True)
 num_ftrs = model_ft.fc.in_features
-model_ft.fc = nn.Linear(num_ftrs, 1)
+if continuous:
+    model_ft.fc = nn.Linear(num_ftrs, 1)
+else:
+    model_ft.fc = nn.Linear(num_ftrs, 2)
 
 if use_gpu:
     model_ft = model_ft.cuda()
