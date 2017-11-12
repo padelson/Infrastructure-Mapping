@@ -23,11 +23,19 @@ continuous = False
 lr = 1e-4
 momentum = 0.9
 len_dataset = 3591
-num_examples = 1000
+
+data_dir = '../addis_s1_center_cropped'
+column = 'pit_latrine_depth_val2_when_bl_dw39_val1'
+
+num_examples = 100
 train_test_split = 0.9
+continuous = False
+lr = 1e-4 # was 0.01 for binary
+momentum = 0.5 # was 0.4 for binary
 last_many_f1 = 5
-batch_size = 64
+batch_size = 10
 num_workers = 4
+num_epochs = 20
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -93,7 +101,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     if not continuous and epoch >= num_epochs - last_many_f1: 
                         running_preds = np.hstack((running_preds, preds.cpu().numpy()))
                 # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
-
 
                 # print (preds == labels.data)
 
@@ -173,50 +180,46 @@ split_point = int(num_examples*train_test_split)
 train_indices = indices[:split_point]
 test_indices = indices[split_point:num_examples]
 
-data_dir = '../addis_' + satellite + '_center_cropped'
-all_results = open(satellite + '_results_binary.csv', 'w')
-for col in util.binary_features:
-	dataset_train = AddisDataset(train_indices, csv_file='../Addis_data_processed.csv',
-					    root_dir=data_dir,
-					    column=col,
-					    transform=data_transforms)
-	dataset_test = AddisDataset(test_indices, csv_file='../Addis_data_processed.csv',
-					    root_dir=data_dir,
-					    column=col,
-					    transform=data_transforms)
+dataset_train = AddisDataset(train_indices, csv_file='../Addis_data_processed.csv',
+                                    root_dir=data_dir,
+                                    column=column,
+                                    transform=data_transforms)
+dataset_test = AddisDataset(test_indices, csv_file='../Addis_data_processed.csv',
+                                    root_dir=data_dir,
+                                    column=column,
+                                    transform=data_transforms)
 
-	dataloaders_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-	dataloaders_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-	dataset_size = len(dataset_train)
+print "Balances: train: %f, test: %f" % (dataset_train.balance, dataset_test.balance)
 
-	use_gpu = torch.cuda.is_available()
+dataloaders_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+dataloaders_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+dataset_size = len(dataset_train)
 
-	######## Train Model
-	torch.set_default_tensor_type('torch.cuda.FloatTensor')
-	model_ft = models.resnet18(pretrained=True)
-	# uncomment for fixed model
-	# for param in model_ft.parameters():
-    	#	param.requires_grad = False
-	num_ftrs = model_ft.fc.in_features
-	if continuous:
-	    model_ft.fc = nn.Linear(num_ftrs, 1)
-	else:
-	    model_ft.fc = nn.Linear(num_ftrs, 2)
+use_gpu = torch.cuda.is_available()
 
-	if use_gpu:
-	    model_ft = model_ft.cuda()
+######## Train Model
 
-	if not continuous:
-	    criterion = nn.CrossEntropyLoss(weight=torch.cuda.FloatTensor([dataset_train.balance, 1-dataset_train.balance]))
-	if continuous:
-	    criterion = nn.MSELoss(size_average=True)
+# torch.set_default_tensor_type('torch.cuda.FloatTensor')
+model_ft = models.resnet18(pretrained=True)
+num_ftrs = model_ft.fc.in_features
+if continuous:
+    model_ft.fc = nn.Linear(num_ftrs, 1)
+else:
+    model_ft.fc = nn.Linear(num_ftrs, 2)
 
-	# Observe that all parameters are being optimized
-	optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
+if use_gpu:
+    model_ft = model_ft.cuda()
 
-	# Decay LR by a factor of 0.1 every 7 epochs
-	exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+if not continuous:
+    criterion = nn.CrossEntropyLoss(weight=torch.cuda.FloatTensor([dataset_train.balance, 1-dataset_train.balance]))
+if continuous:
+    criterion = nn.MSELoss(size_average=True)
 
-	model_ft, train, val = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
-			       num_epochs=20)
-	all_results.write(col + ',' + str(train) + ',' + str(val) + '\n')
+# Observe that all parameters are being optimized
+optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
+
+# Decay LR by a factor of 0.1 every 7 epochs
+exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+
+model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
+                       num_epochs=num_epochs)
