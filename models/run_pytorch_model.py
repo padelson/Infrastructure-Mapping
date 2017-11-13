@@ -46,10 +46,12 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 model.train(True)  # Set model to training mode
                 dataloders = dataloaders_train
                 current_dataset = dataset_train
+		dataset_size = len(current_dataset)
             else:
                 model.train(False)  # Set model to evaluate mode
                 dataloders = dataloaders_test
                 current_dataset = dataset_test
+		dataset_size = len(current_dataset)
 
             running_loss = 0.0
             running_corrects = 0.0
@@ -94,19 +96,20 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 # print (preds == labels.data)
 
-            epoch_loss = running_loss / len(current_dataset)
-            epoch_acc = running_corrects / len(current_dataset)
-            if not continuous and epoch >= num_epochs - last_many_f1:
+            epoch_loss = running_loss / dataset_size
+            epoch_acc = running_corrects / dataset_size
+            epoch_f1 = 0.0
+	    if not continuous and epoch >= num_epochs - last_many_f1:
                 epoch_f1 = f1_score(current_dataset.data, running_preds)
-
                 print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc, epoch_f1))
             else:
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
-
+	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
             # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
+            if phase == 'val' and epoch_f1 > best_acc:
+		print data['id'], preds, labels
                 best_acc = epoch_acc
                 best_model_wts = model.state_dict()
 
@@ -142,13 +145,13 @@ class AddisDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, 's1_median_addis_multiband_224x224_%d.npy' % (self.indices[idx]))
-        image = np.load(img_name)[:, :, :3]
+        img_name = os.path.join(self.root_dir, satellite + '_median_addis_multiband_224x224_%d.npy' % (self.indices[idx]))
+        image = np.load(img_name)[:, :, :3][:, :, ::-1].copy()
         labels = self.data[idx]
         if self.transform:
             image = self.transform(image)
 
-        sample = {'image': image, 'labels': labels}
+        sample = {'image': image, 'labels': labels, 'id': indices[idx]}
 
         return sample
 
