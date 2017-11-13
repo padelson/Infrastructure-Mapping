@@ -77,9 +77,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 # get the inputs
                 inputs = data['image']
                 if continuous:
-                    labels = data['labels'].type(torch.FloatTensor)
+                    labels = data['label'].type(torch.FloatTensor)
                 else:
-                    labels = data['labels'].type(torch.LongTensor)
+                    labels = data['label'].type(torch.LongTensor)
 
                 # wrap them in Variable
                 if use_gpu:
@@ -117,13 +117,13 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             epoch_f1 = 0.0
         if not continuous and epoch >= num_epochs - last_many_f1:
             epoch_f1 = f1_score(current_dataset.data, running_preds)
-        # print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
-                    # phase, epoch_loss, epoch_acc, epoch_f1))
-	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
-	    # else:
-                # print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                    # phase, epoch_loss, epoch_acc))
-	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
+            print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
+                    phase, epoch_loss, epoch_acc, epoch_f1))
+            # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
+        else:
+            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                    phase, epoch_loss, epoch_acc))
+            # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
 
             if phase == 'train' and epoch_f1 > best_train_acc:
                 best_train_acc = epoch_acc
@@ -214,12 +214,12 @@ class AfrobDataset(Dataset):
 
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, self.satellite + '_median_afro_multiband_224x224_%d.npy' % (self.indices[idx]))
-        image = np.load(img_name)[:, :, :3]
+        image = np.load(img_name)[:, :, :3][:,:,::-1].copy()
         labels = self.data[idx]
         if self.transform:
             image = self.transform(image)
 
-        sample = {'image': image, 'labels': labels}
+        sample = {'image': image, 'label': labels, 'id': self.indices[idx]}
 
         return sample
 
@@ -232,7 +232,46 @@ data_transforms = transforms.Compose([
     ])
 
 
+# data_dir = 'hymenoptera_data'
+# image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
+#                                           data_transforms[x])
+#                   for x in ['train', 'val']}
+# dataloders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
+#                                              shuffle=True, num_workers=4)
+#               for x in ['train', 'val']}
+# dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
+# class_names = image_datasets['train'].classes
+#
+# use_gpu = torch.cuda.is_available()
+
 all_results = open(prefix_sat + '_results_binary.csv', 'w')
+
+
+
+def imshow(inp, title=None):
+    """Imshow for Tensor."""
+    inp = inp.numpy().transpose((1, 2, 0))
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    inp = std * inp + mean
+    inp = np.clip(inp, 0, 1)
+    plt.imshow(inp)
+    if title is not None:
+        plt.title(title)
+    plt.show()
+    # plt.pause(3.001)  # pause a bit so that plots are updated
+
+
+# Get a batch of training data
+#inputs, classes = next(iter(dataloders['train']))
+
+# Make a grid from batch
+#out = torchvision.utils.make_grid(inputs)
+
+#imshow(out, title=[class_names[x] for x in classes])
+
+
+
 # for col in util.binary_features:
 for j in range(1):  # FIXME will change it into feature name
     col = "eaelectricity"
@@ -255,11 +294,21 @@ for j in range(1):  # FIXME will change it into feature name
                                   root_dir="../../data/afrobarometer/afro_224x224", column="eaelectricity",
                                   prefix_sat='l8', continuous=False, transform=data_transforms)
 
-
+    # for i in range(2): #len(afDataset_train)
+    #
+    #     sample = (afDataset_train[i])
 
     dataloaders_train = DataLoader(afDataset_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     dataloaders_test = DataLoader(afDataset_test, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     dataset_size = len(afDataset_train)
+
+    # for i in range(2):
+    #     sample = afDataset_train[i]
+    #     imshow(sample['image'], title=sample['id'])
+    #     print(sample['image'])
+
+
+    # raise NotImplementedError("======================!")
 
     use_gpu = torch.cuda.is_available()
 
