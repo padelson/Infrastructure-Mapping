@@ -121,7 +121,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 best_train_acc = epoch_acc
             # deep copy the model
             if phase == 'val' and epoch_f1 > best_acc:
-		print data['id'], preds, labels
                 best_acc = epoch_acc
                 best_model_wts = model.state_dict()
 
@@ -223,3 +222,19 @@ exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
 model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
                        num_epochs=num_epochs)
+
+# for data in dataloders:
+#     # get the inputs
+#     inputs = data['image']
+#     labels = data['labels'].type(torch.LongTensor)
+
+#     # wrap them in Variable
+#     if use_gpu:
+#         inputs = Variable(inputs.cuda())
+#         labels = Variable(labels.cuda())
+#     else:
+#         inputs, labels = Variable(inputs), Variable(labels)
+
+#     # forward
+#     outputs = model_ft(inputs)
+#     _, preds = torch.max(outputs.data, 1)
