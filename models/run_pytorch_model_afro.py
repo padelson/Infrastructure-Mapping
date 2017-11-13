@@ -42,9 +42,9 @@ continuous = False
 lr = 1e-3 # was 0.01 for binary
 momentum = 0.4 # was 0.4 for binary
 last_many_f1 = 5
-batch_size = 20
-num_workers = 8
-num_epochs = 100
+batch_size = 30
+num_workers = 12
+num_epochs = 2
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -251,7 +251,7 @@ data_transforms = transforms.Compose([
 #
 # use_gpu = torch.cuda.is_available()
 
-all_results = open(prefix_sat + '_results_binary.csv', 'w')
+# all_results = open(prefix_sat + '_results_binary.csv', 'w')
 
 
 
@@ -280,12 +280,13 @@ def imshow(inp, title=None):
 
 
 # for col in util.binary_features:
-for j in range(1):  # FIXME will change it into feature name
-    col = "eaelectricity"
-
+categories=["eaelectricity", "eapipedwater", "easewage", "earoad"]
+for j in range(2):  # FIXME will change it into feature name
+    col = categories[j] #"eaelectricity"
+    all_results = open(prefix_sat +'_'+ col + '_results_binary.csv', 'w')
     Af_dataManager = AfroDatasetManager(indices=None,
                                         csv_file="../Afrobarometer/process-data/Af_normed_response_mat_wID.csv",
-                                        img_root_dir=data_dir, column="eaelectricity",
+                                        img_root_dir=data_dir, column=col,
                                         col_id="id",
                                         binary=True)
 
@@ -293,12 +294,12 @@ for j in range(1):  # FIXME will change it into feature name
 
     afDataset_train = AfrobDataset((np.array(ids_train) ),
                                    csv_file="../Afrobarometer/process-data/Af_normed_response_mat_wID.csv",
-                                   root_dir=data_dir, column="eaelectricity",
+                                   root_dir=data_dir, column=col,
                                    prefix_sat='l8', continuous=False, transform=data_transforms)
 
     afDataset_test = AfrobDataset((np.array(ids_test) ),
                                   csv_file="../Afrobarometer/process-data/Af_normed_response_mat_wID.csv",
-                                  root_dir=data_dir, column="eaelectricity",
+                                  root_dir=data_dir, column=col,
                                   prefix_sat='l8', continuous=False, transform=data_transforms)
 
     # for i in range(2): #len(afDataset_train)
@@ -352,6 +353,6 @@ for j in range(1):  # FIXME will change it into feature name
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
     model_ft, train, val = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
-			       num_epochs=100)
+			       num_epochs=num_epochs)
     all_results.write(col + ',' + str(train) + ',' + str(val) + '\n')
 
