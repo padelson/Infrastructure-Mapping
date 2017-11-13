@@ -42,9 +42,9 @@ continuous = False
 lr = 1e-3 # was 0.01 for binary
 momentum = 0.4 # was 0.4 for binary
 last_many_f1 = 5
-batch_size = 40
-num_workers = 16
-num_epochs = 200
+batch_size = 30
+num_workers = 12
+num_epochs = 2
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -121,11 +121,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             epoch_f1 = f1_score(current_dataset.data, running_preds)
             print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc, epoch_f1))
-            all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
+            # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
         else:
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
-            all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
+            # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
 
             if phase == 'train' and epoch_f1 > best_train_acc:
                 best_train_acc = epoch_acc
@@ -281,7 +281,7 @@ def imshow(inp, title=None):
 
 # for col in util.binary_features:
 categories=["eaelectricity", "eapipedwater", "easewage", "earoad"]
-for j in range(4):  # FIXME will change it into feature name
+for j in range(2):  # FIXME will change it into feature name
     col = categories[j] #"eaelectricity"
     all_results = open(prefix_sat +'_'+ col + '_results_binary.csv', 'w')
     Af_dataManager = AfroDatasetManager(indices=None,
