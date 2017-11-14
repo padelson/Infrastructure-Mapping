@@ -42,9 +42,9 @@ continuous = False
 lr = 1e-3 # was 0.01 for binary
 momentum = 0.4 # was 0.4 for binary
 last_many_f1 = 5
-batch_size = 30
+batch_size = 100
 num_workers = 12
-num_epochs = 2
+num_epochs = 3
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -117,15 +117,15 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             epoch_loss = running_loss / dataset_size
             epoch_acc = running_corrects / dataset_size
             epoch_f1 = 0.0
-        if not continuous and epoch >= num_epochs - last_many_f1:
-            epoch_f1 = f1_score(current_dataset.data, running_preds)
-            print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
+            if not continuous and epoch >= num_epochs - last_many_f1:
+                epoch_f1 = f1_score(current_dataset.data, running_preds)
+                print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc, epoch_f1))
-            # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
-        else:
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
+            else:
+                print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
-            # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
+                # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
 
             if phase == 'train' and epoch_f1 > best_train_acc:
                 best_train_acc = epoch_acc
@@ -347,10 +347,11 @@ for j in range(2):  # FIXME will change it into feature name
         criterion = nn.MSELoss(size_average=True)
 
     # Observe that all parameters are being optimized
-    optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
+    # optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
+    optimizer_ft = optim.Adam(model_ft.parameters(), lr=lr)
 
-    # Decay LR by a factor of 0.1 every 7 epochs
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+    # Decay LR by a factor of 0.1 every 5 epochs
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=5, gamma=0.1)
 
     model_ft, train, val = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
 			       num_epochs=num_epochs)
