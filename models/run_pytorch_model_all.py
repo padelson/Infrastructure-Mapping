@@ -17,7 +17,7 @@ import pandas as pd
 from utils import addis as util
 from sklearn.metrics import f1_score
 
-satellite = 'l8'
+satellite = 's1'
 filetail = ".0.npy"
 continuous = False 
 lr = 1e-4
@@ -35,6 +35,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     best_model_wts = model.state_dict()
     best_acc = 0.0
     best_train_acc = 0.0
+    best_f1 = 0.0
+    best_train_f1 = 0.0
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -102,20 +104,22 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             epoch_f1 = 0.0
 	    if not continuous and epoch >= num_epochs - last_many_f1:
                 epoch_f1 = f1_score(current_dataset.data, running_preds)
-		# print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
-                    # phase, epoch_loss, epoch_acc, epoch_f1))
+		print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
+                    phase, epoch_loss, epoch_acc, epoch_f1))
 	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
 	    # else:
                 # print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     # phase, epoch_loss, epoch_acc))
 	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
 
-            if phase == 'train' and epoch_f1 > best_train_acc:
+            if phase == 'train' and epoch_f1 > best_train_f1:
                 best_train_acc = epoch_acc
+		best_train_f1 = epoch_f1
             # deep copy the model
-            if phase == 'val' and epoch_f1 > best_acc:
-		print data['id'], preds, labels
+            if phase == 'val' and epoch_f1 > best_f1:
+		# print data['id'], preds, labels
                 best_acc = epoch_acc
+		best_f1 = epoch_f1
                 best_model_wts = model.state_dict()
 
     time_elapsed = time.time() - since
@@ -125,7 +129,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model, best_train_acc, best_acc
+    return model, best_train_f1, best_f1, best_train_acc, best_acc
 
 class AddisDataset(Dataset):
     """Addis dataset."""
@@ -217,6 +221,6 @@ for col in util.binary_features:
 	# Decay LR by a factor of 0.1 every 7 epochs
 	exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
-	model_ft, train, val = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
+	model_ft, train_f1, f1, train_acc, acc = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
 			       num_epochs=20)
-	all_results.write(col + ',' + str(train) + ',' + str(val) + '\n')
+	all_results.write(','.join([col, str(train_f1), str(f1), str(train_acc), str(acc)]) + '\n')
