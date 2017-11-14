@@ -30,22 +30,23 @@ import matplotlib.pyplot as plt
 # momentum = 0.9
 # len_dataset = 3591
 
-data_dir = '../../data'
+# data_dir = '../../data'
 # data_dir = '../../data/afrobarometer/afro_224x224'
+data_dir = '../../data/afrobarometer/afro_des_s1_center_cropped'
 # data_dir = '/mnt/mounted_bucket/afro_l8_center_cropped'
 # column = 'pit_latrine_depth_val2_when_bl_dw39_val1'
 
 
-prefix_sat = 'l8'
+prefix_sat = 's1'
 # num_examples = 100
 # train_test_split = 0.9
 continuous = False
 lr = 1e-3 # was 0.01 for binary
 momentum = 0.4 # was 0.4 for binary
 last_many_f1 = 5
-batch_size = 50
+batch_size = 10
 num_workers = 8
-num_epochs = 21
+num_epochs = 2
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -218,12 +219,17 @@ class AfrobDataset(Dataset):
 
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, self.satellite + '_median_afro_multiband_224x224_%d.npy' % (self.indices[idx]))
-        try : 
-            image = np.load(img_name)[:, :, :3][:,:,::-1].copy()
+        try :
+            if self.satellite == 'l8':
+                image = np.load(img_name)[:, :, :3][:,:,::-1].copy()
+            elif self.satellite == 's1':
+                image = (np.uint8(np.load(img_name))).copy() #.astype(np.uint8).copy()
+
             labels = self.data[idx]
             if self.transform:
                 image = self.transform(image)
-            
+                # print(image)
+                # raise NotImplementedError("break!!!!")
             sample = {'image': image, 'label': labels, 'id': self.indices[idx]}
 
             return sample
@@ -298,19 +304,19 @@ for j in range(11):  # FIXME will change it into feature name
                                         csv_file="../Afrobarometer/process-data/Af_normed_response_mat_wID.csv",
                                         img_root_dir=data_dir, column=col,
                                         col_id="id",
-                                        binary=True)
+                                        binary=True, satellite=prefix_sat)
 
     ids_train, ids_test, ys_train, ys_test = Af_dataManager.split_train_test_by_Y()
 
     afDataset_train = AfrobDataset((np.array(ids_train) ),
                                    csv_file="../Afrobarometer/process-data/Af_normed_response_mat_wID.csv",
                                    root_dir=data_dir, column=col,
-                                   prefix_sat='l8', continuous=False, transform=data_transforms)
+                                   prefix_sat=prefix_sat, continuous=False, transform=data_transforms)
 
     afDataset_test = AfrobDataset((np.array(ids_test) ),
                                   csv_file="../Afrobarometer/process-data/Af_normed_response_mat_wID.csv",
                                   root_dir=data_dir, column=col,
-                                  prefix_sat='l8', continuous=False, transform=data_transforms)
+                                  prefix_sat=prefix_sat, continuous=False, transform=data_transforms)
 
 
     dataloaders_train = DataLoader(afDataset_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -332,6 +338,7 @@ for j in range(11):  # FIXME will change it into feature name
         torch.set_default_tensor_type('torch.cuda.FloatTensor')
     else:
         torch.set_default_tensor_type('torch.FloatTensor')
+
     model_ft = models.resnet18(pretrained=True)
     # uncomment for fixed model
     # for param in model_ft.parameters():
