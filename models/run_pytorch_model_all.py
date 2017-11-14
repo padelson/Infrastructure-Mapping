@@ -28,6 +28,7 @@ train_test_split = 0.9
 last_many_f1 = 5
 batch_size = 64
 num_workers = 4
+num_epochs = 10
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -46,7 +47,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 model.train(True)  # Set model to training mode
                 dataloders = dataloaders_train
                 current_dataset = dataset_train
-		dataset_size = len(current_dataset)
             else:
                 model.train(False)  # Set model to evaluate mode
                 dataloders = dataloaders_test
@@ -94,21 +94,20 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                         running_preds = np.hstack((running_preds, preds.cpu().numpy()))
                 # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
 
-
                 # print (preds == labels.data)
 
             epoch_loss = running_loss / dataset_size
             epoch_acc = running_corrects / dataset_size
             epoch_f1 = 0.0
-	    if not continuous and epoch >= num_epochs - last_many_f1:
+            if not continuous and epoch >= num_epochs - last_many_f1:
                 epoch_f1 = f1_score(current_dataset.data, running_preds)
-		# print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
+        		# print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
                     # phase, epoch_loss, epoch_acc, epoch_f1))
-	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
-	    # else:
+        	    # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
+    	    # else:
                 # print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                    # phase, epoch_loss, epoch_acc))
-	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
+                    # phase, epoch_loss, epoch_acc)
+                # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
 
             if phase == 'train' and epoch_f1 > best_train_acc:
                 best_train_acc = epoch_acc
@@ -184,6 +183,7 @@ for col in util.binary_features:
 					    root_dir=data_dir,
 					    column=col,
 					    transform=data_transforms)
+    print "Balances: train: %f, test: %f" % (dataset_train.balance, dataset_test.balance)
 
 	dataloaders_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
 	dataloaders_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, num_workers=num_workers)
@@ -192,7 +192,7 @@ for col in util.binary_features:
 	use_gpu = torch.cuda.is_available()
 
 	######## Train Model
-	torch.set_default_tensor_type('torch.cuda.FloatTensor')
+	# torch.set_default_tensor_type('torch.cuda.FloatTensor')
 	model_ft = models.resnet18(pretrained=True)
 	# uncomment for fixed model
 	# for param in model_ft.parameters():
@@ -212,11 +212,11 @@ for col in util.binary_features:
 	    criterion = nn.MSELoss(size_average=True)
 
 	# Observe that all parameters are being optimized
-	optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
-
+	optimizer_ft = optim.Adam(model_ft.parameters(), lr=lr
 	# Decay LR by a factor of 0.1 every 7 epochs
-	exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+	exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=4, gamma=0.1)
 
 	model_ft, train, val = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
-			       num_epochs=20)
+			       num_epochs=num_epochs)
+
 	all_results.write(col + ',' + str(train) + ',' + str(val) + '\n')
