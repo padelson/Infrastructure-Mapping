@@ -34,7 +34,7 @@ func = crop
 if not os.path.exists(new_pathname):
 	os.mkdir(new_pathname)
 
-for i in range(num_files[data_source]):
+for i in range(num_files[data_source] + 1):
 	if i % 100 == 0: print "At %d" % i
 
 	if not reset and os.path.exists(new_batch_source + str(i-1) + new_filetail):
