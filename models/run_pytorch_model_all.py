@@ -107,7 +107,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     phase, epoch_loss, epoch_acc, epoch_f1))
 	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
 	    # else:
-                # print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+		# print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     # phase, epoch_loss, epoch_acc)
                 # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
 
@@ -216,7 +216,7 @@ for col in util.binary_features:
 	    criterion = nn.MSELoss(size_average=True)
 
 	# Observe that all parameters are being optimized
-	optimizer_ft = optim.Adam(model_ft.parameters(), lr=lr
+	optimizer_ft = optim.Adam(model_ft.parameters(), lr=lr)
 	# Decay LR by a factor of 0.1 every 7 epochs
 	exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=4, gamma=0.1)
 
