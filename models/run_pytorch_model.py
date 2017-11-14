@@ -17,7 +17,9 @@ import pandas as pd
 from utils import addis as util
 from sklearn.metrics import f1_score
 
-satellite = 'l8'
+np.set_printoptions(threshold=np.nan)
+
+satellite = 's1'
 filetail = ".0.npy"
 continuous = False 
 lr = 1e-4
@@ -25,15 +27,16 @@ momentum = 0.9
 len_dataset = 3591
 
 data_dir = '../addis_s1_center_cropped'
-column = 'pit_latrine_depth_val2_when_bl_dw39_val1'
+columns = ['pit_latrine_depth_val2_when_bl_dw39_val1']
+column_weights = [1 for _ in range(len(columns))]
 
-num_examples = 100
+num_examples = 3591
 train_test_split = 0.9
 continuous = False
 lr = 1e-4 # was 0.01 for binary
 momentum = 0.5 # was 0.4 for binary
-last_many_f1 = 5
-batch_size = 10
+last_many_f1 = 20
+batch_size = 64
 num_workers = 4
 num_epochs = 20
 
@@ -54,16 +57,17 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 model.train(True)  # Set model to training mode
                 dataloders = dataloaders_train
                 current_dataset = dataset_train
-		dataset_size = len(current_dataset)
             else:
                 model.train(False)  # Set model to evaluate mode
                 dataloders = dataloaders_test
                 current_dataset = dataset_test
-		dataset_size = len(current_dataset)
+
+            dataset_size = len(current_dataset)
 
             running_loss = 0.0
-            running_corrects = 0.0
-            running_preds = np.array([])
+            running_corrects = torch.zeros(len(columns))
+            running_preds = None
+            running_labels = None
 
             # Iterate over data.
             for data in dataloders:
@@ -81,13 +85,16 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 else:
                     inputs, labels = Variable(inputs), Variable(labels)
 
+
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward
-                outputs = model(inputs)
-                _, preds = torch.max(outputs.data, 1)
-                loss = criterion(outputs, labels)
+                convolved = convolver(inputs)
+                outputs = model(convolved)
+                preds = torch.round(sigmoider(outputs)).data
+                # outputs = outputs.type(torch.cuda.LongTensor)
+                loss = criterion(outputs.squeeze(), labels.type(torch.cuda.FloatTensor).squeeze())
 
                 # backward + optimize only if in training phase
                 if phase == 'train':
@@ -97,27 +104,39 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 # statistics
                 running_loss += loss.data[0]
                 if not continuous:
-                    running_corrects += torch.sum(preds == labels.data)
+                    running_corrects += torch.sum((preds == labels.data.type(torch.cuda.FloatTensor)).type(torch.FloatTensor), 0)
                     if not continuous and epoch >= num_epochs - last_many_f1: 
-                        running_preds = np.hstack((running_preds, preds.cpu().numpy()))
-                # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
+                        if running_preds is None: 
+                            running_preds = preds.cpu().numpy()
+                            running_labels = labels.data.cpu().numpy()
+                        else: 
+                            running_preds = np.vstack((running_preds, preds.cpu().numpy()))
+                            running_labels = np.vstack((running_labels, labels.data.cpu().numpy()))
 
                 # print (preds == labels.data)
 
             epoch_loss = running_loss / dataset_size
-            epoch_acc = running_corrects / dataset_size
-            epoch_f1 = 0.0
-	    if not continuous and epoch >= num_epochs - last_many_f1:
-                epoch_f1 = f1_score(current_dataset.data, running_preds)
-		print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
-                    phase, epoch_loss, epoch_acc, epoch_f1))
+            epoch_acc = running_corrects.numpy() / dataset_size
+            if not continuous and epoch >= num_epochs - last_many_f1:
+                print ('%s Loss: %.4f') % (phase, epoch_loss)
+                for i, column in enumerate(columns):
+                    epoch_f1 = f1_score(running_labels[:, i], running_preds[:, i])
+                    print ('%s Acc: %.4f F1: %.4f') % (column, epoch_acc[i], epoch_f1)
+
+                # print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
+                #             phase, epoch_loss, epoch_acc, epoch_f1))
             else:
-                print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                    phase, epoch_loss, epoch_acc))
-	    	# all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
+                # print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                #     phase, epoch_loss, epoch_acc))
+                print ('%s Loss: %.4f') % (phase, epoch_loss)
+                for i, column in enumerate(columns):
+                    epoch_f1 = f1_score(running_labels[:, i], running_preds[:, i])
+                    print ('%s Acc: %.4f') % (column, epoch_acc)
+    
+            # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
             # deep copy the model
-            if phase == 'val' and epoch_f1 > best_acc:
-                best_acc = epoch_acc
+            if phase == 'val' and np.mean(epoch_acc) > best_acc:
+                best_acc = np.mean(epoch_acc)
                 best_model_wts = model.state_dict()
 
     time_elapsed = time.time() - since
@@ -131,7 +150,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
 class AddisDataset(Dataset):
     """Addis dataset."""
-    def __init__(self, indices, csv_file, root_dir, column, transform=None):
+    def __init__(self, indices, csv_file, root_dir, columns, transform=None):
         """
         Args:
             csv_file (string): Path to the csv file.
@@ -140,20 +159,20 @@ class AddisDataset(Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        self.data = pd.read_csv(csv_file)[column][indices].values # TODO: lol indexing is jank rn will change
+        self.data = pd.read_csv(csv_file)[columns].values[indices] # TODO: lol indexing is jank rn will change
         self.root_dir = root_dir
         self.transform = transform
         self.indices = indices
 
         if not continuous:
-            self.balance = float(np.sum(self.data)) / float(len(self.data))
+            self.balance = np.sum(self.data, axis=0) / float(len(self.data))
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, satellite + '_median_addis_multiband_224x224_%d.npy' % (self.indices[idx]))
-        image = np.load(img_name)[:, :, :3][:, :, ::-1].copy()
+        image = np.load(img_name)
         labels = self.data[idx]
         if self.transform:
             image = self.transform(image)
@@ -177,41 +196,46 @@ test_indices = indices[split_point:num_examples]
 
 dataset_train = AddisDataset(train_indices, csv_file='../Addis_data_processed.csv',
                                     root_dir=data_dir,
-                                    column=column,
+                                    columns=columns,
                                     transform=data_transforms)
 dataset_test = AddisDataset(test_indices, csv_file='../Addis_data_processed.csv',
                                     root_dir=data_dir,
-                                    column=column,
+                                    columns=columns,
                                     transform=data_transforms)
 
-print "Balances: train: %f, test: %f" % (dataset_train.balance, dataset_test.balance)
+for i, column in enumerate(columns):
+    print "Balance %s train: %f, test: %f" % (column, dataset_train.balance[i], dataset_test.balance[i])
 
 dataloaders_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
 dataloaders_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-dataset_size = len(dataset_train)
 
 use_gpu = torch.cuda.is_available()
 
 ######## Train Model
 
 # torch.set_default_tensor_type('torch.cuda.FloatTensor')
+convolver = nn.Conv2d(5, 3, 1)
 model_ft = models.resnet18(pretrained=True)
 num_ftrs = model_ft.fc.in_features
 if continuous:
     model_ft.fc = nn.Linear(num_ftrs, 1)
 else:
-    model_ft.fc = nn.Linear(num_ftrs, 2)
+    model_ft.fc = nn.Linear(num_ftrs, len(columns))
+
+sigmoider = nn.Sigmoid()
 
 if use_gpu:
     model_ft = model_ft.cuda()
 
 if not continuous:
-    criterion = nn.CrossEntropyLoss(weight=torch.cuda.FloatTensor([dataset_train.balance, 1-dataset_train.balance]))
+    assert(len(columns) == len(column_weights))
+    #column_weights = np.minimum(dataset_train.balance, 1-dataset_train.balance)
+    criterion = nn.BCEWithLogitsLoss(weight=torch.cuda.FloatTensor(column_weights))
 if continuous:
     criterion = nn.MSELoss(size_average=True)
 
 # Observe that all parameters are being optimized
-optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
+optimizer_ft = optim.Adam(model_ft.parameters(), lr=lr)
 
 # Decay LR by a factor of 0.1 every 7 epochs
 exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
