@@ -30,8 +30,8 @@ import matplotlib.pyplot as plt
 # momentum = 0.9
 # len_dataset = 3591
 
-# data_dir = '../../data'
-data_dir = '../../data/afrobarometer/afro_224x224'
+data_dir = '../../data'
+# data_dir = '../../data/afrobarometer/afro_224x224'
 # data_dir = '/mnt/mounted_bucket/afro_l8_center_cropped'
 # column = 'pit_latrine_depth_val2_when_bl_dw39_val1'
 
@@ -43,22 +43,24 @@ continuous = False
 lr = 1e-3 # was 0.01 for binary
 momentum = 0.4 # was 0.4 for binary
 last_many_f1 = 5
-batch_size = 10
-num_workers = 4
-num_epochs = 3
+batch_size = 50
+num_workers = 8
+num_epochs = 21
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
     # all_results = open(satellite + '_results.csv', 'w')
     best_model_wts = model.state_dict()
     best_acc = 0.0
+    best_train_acc = 0.0
     best_f1 = 0.0
+    best_train_f1 = 0.0 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
 
         # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
+        for phase in ['train', 'vali']:
             if phase == 'train':
                 scheduler.step()
                 model.train(True)  # Set model to training mode
@@ -123,9 +125,13 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             else:
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
-                # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
+            all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
             # deep copy the model
-            if phase == 'val' and epoch_f1 > best_f1:
+            if phase == 'train' and epoch_f1 > best_train_f1:
+                best_train_acc = epoch_acc
+                best_train_f1 = epoch_f1            
+
+            if phase == 'vali' and epoch_f1 > best_f1:
                 best_f1 = epoch_f1
                 best_acc = epoch_acc
                 best_model_wts = model.state_dict()
@@ -137,7 +143,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model, best_f1, best_acc
+    return model, best_train_f1, best_f1, best_train_acc, best_acc
+
 ##############################
 #
 class AfroDatasetManager(object):
@@ -275,8 +282,16 @@ def imshow(inp, title=None):
 
 
 # for col in util.binary_features:
-categories=["eaelectricity", "eapipedwater", "easewage", "earoad"]
-for j in range(2):  # FIXME will change it into feature name
+categories=["eaelectricity", "eapipedwater", "easewage", "earoad",
+            'eacellphone',
+	    'eapostoffice',
+	    'easchool',
+	    'eapolicestation',
+ 	    'eahealthclinic',
+	    'eamarketstalls',
+	    'eabank']
+
+for j in range(11):  # FIXME will change it into feature name
     col = categories[j] #"eaelectricity"
     all_results = open(prefix_sat +'_'+ col + '_results_binary.csv', 'w')
     Af_dataManager = AfroDatasetManager(indices=None,
@@ -345,7 +360,9 @@ for j in range(2):  # FIXME will change it into feature name
     # Decay LR by a factor of 0.1 every 5 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=5, gamma=0.1)
 
-    model_ft, train, val = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
+    model_ft, train_f1, f1, train_acc, acc = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
 			       num_epochs=num_epochs)
-    all_results.write(col + ',' + str(train) + ',' + str(val) + '\n')
+    #all_results.write(col + ',' + str(train) + ',' + str(val) + '\n') 
+    all_results.write(','.join([col, str(afDataset_train.balance), str(afDataset_test.balance), str(train_f1), str(f1), str(train_acc), str(acc)]) + '\n')
+
 
