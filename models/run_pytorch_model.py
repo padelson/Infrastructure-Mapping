@@ -21,12 +21,9 @@ np.set_printoptions(threshold=np.nan)
 
 satellite = 's1'
 filetail = ".0.npy"
-continuous = False 
-lr = 1e-4
-momentum = 0.9
 len_dataset = 3591
 
-data_dir = '../addis_s1_center_cropped'
+data_dir = '../addis_' + satellite + '_center_cropped'
 columns = ['pit_latrine_depth_val2_when_bl_dw39_val1']
 column_weights = [1 for _ in range(len(columns))]
 
@@ -35,7 +32,7 @@ train_test_split = 0.9
 continuous = False
 lr = 1e-4 # was 0.01 for binary
 momentum = 0.5 # was 0.4 for binary
-last_many_f1 = 20
+last_many_f1 = 5
 batch_size = 64
 num_workers = 4
 num_epochs = 20
@@ -45,7 +42,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     # all_results = open(satellite + '_results.csv', 'w')
     best_model_wts = model.state_dict()
     best_acc = 0.0
-    best_train_acc = 0.0
+    best_f1 = 0.0
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -61,7 +58,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 model.train(False)  # Set model to evaluate mode
                 dataloders = dataloaders_test
                 current_dataset = dataset_test
-
             dataset_size = len(current_dataset)
 
             running_loss = 0.0
@@ -146,7 +142,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model, best_train_acc, best_acc
+    return model, best_f1, best_acc
 
 class AddisDataset(Dataset):
     """Addis dataset."""
@@ -238,23 +234,7 @@ if continuous:
 optimizer_ft = optim.Adam(model_ft.parameters(), lr=lr)
 
 # Decay LR by a factor of 0.1 every 7 epochs
-exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=4, gamma=0.1)
 
-model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
+model_ft, _, _ = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
                        num_epochs=num_epochs)
-
-# for data in dataloders:
-#     # get the inputs
-#     inputs = data['image']
-#     labels = data['labels'].type(torch.LongTensor)
-
-#     # wrap them in Variable
-#     if use_gpu:
-#         inputs = Variable(inputs.cuda())
-#         labels = Variable(labels.cuda())
-#     else:
-#         inputs, labels = Variable(inputs), Variable(labels)
-
-#     # forward
-#     outputs = model_ft(inputs)
-#     _, preds = torch.max(outputs.data, 1)
