@@ -21,7 +21,7 @@ satellite = 'l8'
 filetail = ".0.npy"
 len_dataset = 3591
 
-data_dir = '../addis_' + satellite + 's1_center_cropped'
+data_dir = '../addis_' + satellite + '_center_cropped'
 column = 'pit_latrine_depth_val2_when_bl_dw39_val1'
 
 num_examples = 3591
