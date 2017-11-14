@@ -51,7 +51,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     # all_results = open(satellite + '_results.csv', 'w')
     best_model_wts = model.state_dict()
     best_acc = 0.0
-    best_train_acc = 0.0
+    best_f1 = 0.0
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -62,13 +62,12 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 scheduler.step()
                 model.train(True)  # Set model to training mode
                 dataloders = dataloaders_train
-                current_dataset = afDataset_test # dataset_train
-                dataset_size = len(current_dataset)
+                current_dataset = afDataset_train
             else:
                 model.train(False)  # Set model to evaluate mode
                 dataloders = dataloaders_test
-                current_dataset = afDataset_test # dataset_test
-                dataset_size = len(current_dataset)
+                current_dataset = afDataset_test
+            dataset_size = len(current_dataset)
 
             running_loss = 0.0
             running_corrects = 0.0
@@ -79,9 +78,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 # get the inputs
                 inputs = data['image']
                 if continuous:
-                    labels = data['label'].type(torch.FloatTensor)
+                    labels = data['labels'].type(torch.FloatTensor)
                 else:
-                    labels = data['label'].type(torch.LongTensor)
+                    labels = data['labels'].type(torch.LongTensor)
 
                 # wrap them in Variable
                 if use_gpu:
@@ -111,7 +110,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                         running_preds = np.hstack((running_preds, preds.cpu().numpy()))
                 # running_tp += torch.sum(torch.eq((preds == labels.data), labels.data))
 
-
                 # print (preds == labels.data)
 
             epoch_loss = running_loss / dataset_size
@@ -121,17 +119,13 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 epoch_f1 = f1_score(current_dataset.data, running_preds)
                 print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc, epoch_f1))
-                # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc), str(epoch_f1)]) + '\n')
             else:
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
                 # all_results.write(','.join([str(epoch), phase, str(epoch_loss), str(epoch_acc)]) + '\n')
-
-            if phase == 'train' and epoch_f1 > best_train_acc:
-                best_train_acc = epoch_acc
             # deep copy the model
-            if phase == 'val' and epoch_f1 > best_acc:
-                print(data['id'], preds, labels)
+            if phase == 'val' and epoch_f1 > best_f1:
+                best_f1 = epoch_f1
                 best_acc = epoch_acc
                 best_model_wts = model.state_dict()
 
@@ -142,7 +136,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model, best_train_acc, best_acc
+    return model, best_f1, best_acc
 ##############################
 #
 class AfroDatasetManager(object):
