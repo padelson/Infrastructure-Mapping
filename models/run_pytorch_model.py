@@ -16,6 +16,7 @@ import os
 import pandas as pd
 from utils import addis as util
 from sklearn.metrics import f1_score
+from sklearn.metrics import roc_auc_score
 
 np.set_printoptions(threshold=np.nan)
 
@@ -27,7 +28,11 @@ momentum = 0.9
 len_dataset = 3591
 
 data_dir = '../addis_s1_center_cropped'
-columns = ['pit_latrine_depth_val2_when_bl_dw39_val1']
+
+columns = util.balanced_binary_features
+columns = ['water_quality_concerns_val_YES',
+    'water_quality_concerns_val_NO']
+
 column_weights = [1 for _ in range(len(columns))]
 
 num_examples = 3591
@@ -39,6 +44,7 @@ last_many_f1 = 20
 batch_size = 64
 num_workers = 4
 num_epochs = 20
+weight_decay = 1e-3
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -68,6 +74,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             running_corrects = torch.zeros(len(columns))
             running_preds = None
             running_labels = None
+            running_scores = None
 
             # Iterate over data.
             for data in dataloders:
@@ -92,7 +99,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 # forward
                 # convolved = convolver(inputs)
                 outputs = model(inputs)
-                preds = torch.round(sigmoider(outputs)).data
+                scores = sigmoider(outputs)
+                preds = torch.round(scores).data
+                scores = scores.data
                 # outputs = outputs.type(torch.cuda.LongTensor)
                 loss = criterion(outputs.squeeze(), labels.type(torch.cuda.FloatTensor).squeeze())
 
@@ -109,9 +118,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                         if running_preds is None: 
                             running_preds = preds.cpu().numpy()
                             running_labels = labels.data.cpu().numpy()
+                            running_scores = scores.cpu().numpy()
                         else: 
                             running_preds = np.vstack((running_preds, preds.cpu().numpy()))
                             running_labels = np.vstack((running_labels, labels.data.cpu().numpy()))
+                            running_scores = np.vstack((running_scores, scores.cpu().numpy()))
 
                 # print (preds == labels.data)
 
@@ -121,7 +132,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 print ('%s Loss: %.4f') % (phase, epoch_loss)
                 for i, column in enumerate(columns):
                     epoch_f1 = f1_score(running_labels[:, i], running_preds[:, i])
-                    print ('%s Acc: %.4f F1: %.4f') % (column, epoch_acc[i], epoch_f1)
+                    roc_score = roc_auc_score(running_labels[:, i], running_scores[:, i])
+                    print ('%s Acc: %.4f F1: %.4f ROC_score: %.4f') % (column, epoch_acc[i], epoch_f1, roc_score)
 
                 # print('{} Loss: {:.4f} Acc: {:.4f} F1: {:.4f}'.format(
                 #             phase, epoch_loss, epoch_acc, epoch_f1))
@@ -166,13 +178,18 @@ class AddisDataset(Dataset):
 
         if not continuous:
             self.balance = np.sum(self.data, axis=0) / float(len(self.data))
+            # print "The following are balanced"
+            # for i in range(len(self.balance)):
+            #     if self.balance[i] >= 0.05 and self.balance[i] <= 0.95: print "'%s'," % columns[i]
+            # print "The above are balanced"
+
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, satellite + '_median_addis_multiband_224x224_%d.npy' % (self.indices[idx]))
-        image = np.load(img_name)
+        image = np.load(img_name)[:, :, :3]
         labels = self.data[idx]
         if self.transform:
             image = self.transform(image)
@@ -235,7 +252,7 @@ if continuous:
     criterion = nn.MSELoss(size_average=True)
 
 # Observe that all parameters are being optimized
-optimizer_ft = optim.Adam(model_ft.parameters(), lr=lr)
+optimizer_ft = optim.Adam(model_ft.parameters(), lr=lr, weight_decay = weight_decay)
 
 # Decay LR by a factor of 0.1 every 7 epochs
 exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
