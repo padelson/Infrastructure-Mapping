@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import time
 import os
 import pandas as pd
+from skimage.transform import resize as rescale
 from utils import addis as util
 from sklearn.metrics import f1_score
 from sklearn.metrics import recall_score
@@ -34,18 +35,19 @@ columns = ['water_quality_concerns_val_YES',
 
 column_weights = [1 for _ in range(len(columns))] # How much to weigh each column in the loss function
 
-num_examples = 1000
+num_examples = len_dataset
 train_test_split = 0.9
 continuous = False
-lr = 1e-4 # was 0.01 for binary
-momentum = 0.5 # was 0.4 for binary
-detailed_metrics_for = 20
+lr = 1e-4
 batch_size = 64
 num_workers = 4
 num_epochs = 20
 weight_decay = 1e-3
+subregion_size = 150
+num_bands = 5
+detailed_metrics_for = 20
+augment = True
 
-use_five_bands = True
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -97,7 +99,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 optimizer.zero_grad()
 
                 # forward
-                if use_five_bands:
+                if num_bands > 3:
                     convolved = convolver(inputs)
                     outputs = model(convolved)
                 else:
@@ -154,6 +156,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     true_positive_sat_index = current_dataset.indices[true_positive_index] + 1, column_scores[true_positive_index], column_labels[true_positive_index]
                     true_negative_sat_index = current_dataset.indices[true_negative_index] + 1, column_scores[true_negative_index], column_labels[true_negative_index]
 
+                    print "Percent of 1 predictions: %.4f" % np.mean(column_preds)
                     print "False positive id, score, label: %d, %.4f, %d" % false_positive_sat_index
                     print "False negative id, score, label: %d, %.4f, %d" % false_negative_sat_index
                     print "True positive id, score, label: %d, %.4f, %d" % true_positive_sat_index
@@ -187,7 +190,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
 class AddisDataset(Dataset):
     """Addis dataset."""
-    def __init__(self, indices, csv_file, root_dir, columns, transform=None):
+    def __init__(self, indices, csv_file, root_dir, columns, transform=None, train=True, augment=False):
         """
         Args:
             csv_file (string): Path to the csv file.
@@ -200,6 +203,8 @@ class AddisDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
         self.indices = indices
+        self.train = train
+        self.augment = augment
 
         if not continuous:
             self.balance = np.sum(self.data, axis=0) / float(len(self.data))
@@ -208,15 +213,48 @@ class AddisDataset(Dataset):
             #     if self.balance[i] >= 0.05 and self.balance[i] <= 0.95: print "'%s'," % columns[i]
             # print "The above are balanced"
 
+    def subregion(self, image, subregion_size=150):
+        diff = 224 - subregion_size
+        stdev = diff/6
+
+        x = int(np.round(np.minimum(np.maximum(np.random.normal(diff/2, stdev), 0), diff)))
+        y = int(np.round(np.minimum(np.maximum(np.random.normal(diff/2, stdev), 0), diff)))
+
+        new_image = image[:, x:x+subregion_size, y:y+subregion_size]
+        print "New image shape: ", new_image.shape
+        print "Old image shape: ", image.shape
+
+        return rescale(new_image, image.shape)
+
+    def center_subregion(self, image, subregion_size=150):
+        diff = 224 - subregion_size
+        return rescale(image[:, diff/2 : 224 - diff/2, diff/2 : 224 - diff/2], (5, 224, 224))
+
+    def gaussian_noise(self, image):
+        return np.random.normal(image, 0.03, image.shape)
+
+    def flip(self, image, p=0.4):
+        return np.flip(image, 2) if np.random.rand() < p else image
 
     def __len__(self):
         return len(self.data)
 
+    def augment_image(self, image, subregion_size = 150):
+        if self.train:
+            print image.shape
+            image = self.subregion(image, subregion_size = subregion_size)
+            print image.shape
+            image = self.gaussian_noise(image)
+            print image.shape
+            image = self.flip(image)
+            print image.shape
+        else:
+            image = self.center_subregion(image, subregion_size = subregion_size)
+        return image
+
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, satellite + '_median_addis_multiband_224x224_%d.npy' % (self.indices[idx]))
-        # image = np.load(img_name)[:, :, :3]
-        if use_five_bands: image = np.load(img_name)
-        else: image = np.load(img_name)[:, :, :3]
+        image = np.load(img_name)[:, :, :num_bands]
         labels = self.data[idx]
         if self.transform:
             image = self.transform(image)
@@ -227,13 +265,26 @@ class AddisDataset(Dataset):
 
 ####### Initialize Data
 
-data_transforms = transforms.Compose([
+noise_transform = lambda x: torch.normal(means=x, std=0.04)
+
+data_transforms_train = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406, 0.45, 0.45], [0.229, 0.224, 0.225, 0.225, 0.225])
+        transforms.Normalize([0.485, 0.456, 0.406, 0.45, 0.45][:num_bands], [0.229, 0.224, 0.225, 0.225, 0.225][:num_bands]),
+        transforms.RandomCrop(subregion_size),
+        transforms.RandomHorizontalFlip(),
+        transforms.Lambda(noise_transform),
+        transforms.Scale((5, 224, 224))
+    ])
+
+data_transforms_test = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406, 0.45, 0.45][:num_bands], [0.229, 0.224, 0.225, 0.225, 0.225][:num_bands]),
+        transforms.CenterCrop(subregion_size),
+        transforms.Scale((5, 224, 224))
     ])
 
 indices = np.arange(len_dataset)
-# np.random.shuffle(indices)
+np.random.shuffle(indices)
 split_point = int(num_examples*train_test_split)
 train_indices = indices[:split_point]
 test_indices = indices[split_point:num_examples]
@@ -241,11 +292,15 @@ test_indices = indices[split_point:num_examples]
 dataset_train = AddisDataset(train_indices, csv_file='../Addis_data_processed.csv',
                                     root_dir=data_dir,
                                     columns=columns,
-                                    transform=data_transforms)
+                                    transform=data_transforms,
+                                    train=True,
+                                    augment=augment)
 dataset_test = AddisDataset(test_indices, csv_file='../Addis_data_processed.csv',
                                     root_dir=data_dir,
                                     columns=columns,
-                                    transform=data_transforms)
+                                    transform=data_transforms,
+                                    train=False,
+                                    augment=augment)
 
 for i, column in enumerate(columns):
     print "Balance %s train: %f, test: %f" % (column, dataset_train.balance[i], dataset_test.balance[i])
